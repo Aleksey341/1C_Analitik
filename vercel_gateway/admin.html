@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>1С Аналитик — Администратор</title>
+  <style>
+    :root { color-scheme: dark; font-family: Inter, Segoe UI, Arial, sans-serif; }
+    body { margin:0; background:#0b0d10; color:#f3f5f7; }
+    .wrap { max-width:980px; margin:0 auto; padding:32px 18px 60px; }
+    h1 { margin:0 0 8px; font-size:28px; }
+    .muted { color:#9aa4af; }
+    .card { background:#14181d; border:1px solid #27303a; border-radius:14px; padding:18px; margin-top:18px; }
+    input, button { font:inherit; }
+    input { background:#0d1116; color:#fff; border:1px solid #384450; border-radius:9px; padding:11px 12px; }
+    button { border:0; border-radius:9px; padding:11px 15px; cursor:pointer; background:#1683ff; color:#fff; font-weight:600; }
+    button.secondary { background:#303841; }
+    button.danger { background:#a62d35; }
+    button:disabled { opacity:.55; cursor:wait; }
+    .row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    .row input { flex:1; min-width:220px; }
+    table { width:100%; border-collapse:collapse; margin-top:12px; }
+    th,td { text-align:left; border-bottom:1px solid #29313a; padding:12px 8px; vertical-align:middle; }
+    th { color:#9aa4af; font-size:13px; }
+    .badge { display:inline-block; padding:4px 8px; border-radius:20px; font-size:12px; }
+    .on { background:#123d2a; color:#7be3a8; }
+    .off { background:#432124; color:#ff9da3; }
+    .code { font-family:Consolas,monospace; font-size:17px; background:#0d1116; padding:12px; border-radius:9px; word-break:break-all; }
+    #message { margin-top:12px; min-height:24px; }
+    .error { color:#ff9da3; }
+    .ok { color:#7be3a8; }
+    .hidden { display:none; }
+    .actions { display:flex; gap:7px; flex-wrap:wrap; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h1>1С Аналитик — Администратор</h1>
+  <div class="muted">Выдача и отключение кодов доступа. OpenAI API key пользователям не показывается.</div>
+
+  <section id="loginCard" class="card">
+    <h2>Вход</h2>
+    <div class="row">
+      <input id="adminCode" type="password" placeholder="Код администратора" autocomplete="current-password" />
+      <button id="loginBtn">Войти</button>
+    </div>
+  </section>
+
+  <section id="panel" class="hidden">
+    <div class="card">
+      <h2>Новый пользователь</h2>
+      <div class="row">
+        <input id="userName" placeholder="Например: Иванов И.И." />
+        <button id="createBtn">Создать код доступа</button>
+      </div>
+      <div id="newCodeBox" class="hidden" style="margin-top:14px">
+        <div class="muted">Передайте этот код пользователю. После закрытия страницы его plaintext не хранится.</div>
+        <div id="newCode" class="code" style="margin-top:8px"></div>
+        <button id="copyBtn" class="secondary" style="margin-top:8px">Копировать код</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row" style="justify-content:space-between">
+        <h2 style="margin:0">Пользователи</h2>
+        <button id="refreshBtn" class="secondary">Обновить</button>
+      </div>
+      <div style="overflow:auto">
+        <table>
+          <thead><tr><th>Пользователь</th><th>Статус</th><th>Создан</th><th>Код</th><th></th></tr></thead>
+          <tbody id="usersBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+  <div id="message"></div>
+</div>
+<script>
+  let adminCode = sessionStorage.getItem('1ca_admin_code') || '';
+  let registry = [];
+  const $ = (id) => document.getElementById(id);
+
+  function setMessage(text, kind='') {
+    $('message').textContent = text || '';
+    $('message').className = kind;
+  }
+
+  function fmtDate(value) {
+    if (!value) return '—';
+    try { return new Date(value).toLocaleString('ru-RU'); } catch { return value; }
+  }
+
+  async function api(method='GET', body=null) {
+    const options = { method, headers: { Authorization: `Bearer ${adminCode}` } };
+    if (body) {
+      options.headers['Content-Type'] = 'application/json';
+      options.body = JSON.stringify(body);
+    }
+    const response = await fetch('/api/admin/users', options);
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+    return data;
+  }
+
+  function render(data) {
+    registry = Array.isArray(data.registry) ? data.registry : registry;
+    const users = Array.isArray(data.users) ? data.users : [];
+    $('usersBody').innerHTML = '';
+    for (const user of users) {
+      const tr = document.createElement('tr');
+      const statusClass = user.active ? 'on' : 'off';
+      const statusText = user.active ? 'Активен' : 'Отключён';
+      tr.innerHTML = `
+        <td></td>
+        <td><span class="badge ${statusClass}">${statusText}</span></td>
+        <td>${fmtDate(user.createdAt)}</td>
+        <td><span class="muted">${user.fingerprint || ''}…</span></td>
+        <td><div class="actions"></div></td>`;
+      tr.children[0].textContent = user.name;
+      const actions = tr.querySelector('.actions');
+      const toggle = document.createElement('button');
+      toggle.className = 'secondary';
+      toggle.textContent = user.active ? 'Отключить' : 'Включить';
+      toggle.onclick = () => mutate('toggle', { id: user.id });
+      const del = document.createElement('button');
+      del.className = 'danger';
+      del.textContent = 'Удалить';
+      del.onclick = () => {
+        if (confirm(`Удалить доступ «${user.name}»?`)) mutate('delete', { id: user.id });
+      };
+      actions.append(toggle, del);
+      $('usersBody').appendChild(tr);
+    }
+  }
+
+  async function login() {
+    adminCode = $('adminCode').value.trim() || adminCode;
+    if (!adminCode) return;
+    try {
+      setMessage('Проверяю доступ…');
+      const data = await api();
+      sessionStorage.setItem('1ca_admin_code', adminCode);
+      $('loginCard').classList.add('hidden');
+      $('panel').classList.remove('hidden');
+      render(data);
+      setMessage(data.automationReady ? 'Админ-панель готова.' : 'Вход выполнен, но VERCEL_API_TOKEN ещё не настроен.', data.automationReady ? 'ok' : 'error');
+    } catch (e) {
+      setMessage(e.message, 'error');
+    }
+  }
+
+  async function mutate(action, extra={}) {
+    try {
+      setMessage('Сохраняю изменения и запускаю Production deployment…');
+      const data = await api('POST', { action, registry, ...extra });
+      render(data);
+      if (data.accessCode) {
+        $('newCode').textContent = data.accessCode;
+        $('newCodeBox').classList.remove('hidden');
+      }
+      const dep = data.deployment?.url ? ` Deployment: ${data.deployment.url}` : '';
+      setMessage((data.note || 'Готово.') + dep, 'ok');
+    } catch (e) {
+      setMessage(e.message, 'error');
+    }
+  }
+
+  $('loginBtn').onclick = login;
+  $('adminCode').addEventListener('keydown', (e) => { if (e.key === 'Enter') login(); });
+  $('createBtn').onclick = () => {
+    const name = $('userName').value.trim();
+    if (!name) return setMessage('Укажите имя пользователя.', 'error');
+    mutate('create', { name });
+    $('userName').value = '';
+  };
+  $('refreshBtn').onclick = async () => {
+    try { const data = await api(); render(data); setMessage('Обновлено.', 'ok'); }
+    catch (e) { setMessage(e.message, 'error'); }
+  };
+  $('copyBtn').onclick = async () => {
+    const code = $('newCode').textContent;
+    if (code) await navigator.clipboard.writeText(code);
+    setMessage('Код скопирован.', 'ok');
+  };
+
+  if (adminCode) login();
+</script>
+</body>
+</html>

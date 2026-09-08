@@ -25,6 +25,90 @@ function isAllowedAccessCode(code) {
   return configured.some((allowed) => safeHexEqual(digest, allowed));
 }
 
+function messageText(message) {
+  const content = message?.content;
+  if (typeof content === "string") {
+    return content;
+  }
+  if (Array.isArray(content)) {
+    return content
+      .map((item) => (typeof item?.text === "string" ? item.text : ""))
+      .join("\n");
+  }
+  return "";
+}
+
+function isLiveSpokenRequest(messages) {
+  const systemText = (messages || [])
+    .filter((message) => message?.role === "system")
+    .map(messageText)
+    .join("\n")
+    .toLowerCase();
+  return (
+    systemText.includes("живом созвоне") ||
+    systemText.includes("короткая реплика") ||
+    systemText.includes("произнести вслух")
+  );
+}
+
+function addLiveGuard(messages) {
+  if (!isLiveSpokenRequest(messages)) {
+    return messages;
+  }
+  const guard =
+    "\n\nКРИТИЧНО ДЛЯ ЖИВОГО СОЗВОНА: начинай сразу с ответа по существу. " +
+    "Не пиши служебные фразы о качестве связи или слышимости, например " +
+    "«Да, слышно хорошо», «Вас слышно», «Я вас слышу». Не добавляй приветствие " +
+    "или подтверждение ради вежливости, если оно не является частью ответа.";
+
+  let applied = false;
+  const result = (messages || []).map((message) => {
+    if (!applied && message?.role === "system" && typeof message.content === "string") {
+      applied = true;
+      return { ...message, content: message.content + guard };
+    }
+    return message;
+  });
+  if (!applied) {
+    result.unshift({ role: "system", content: guard.trim() });
+  }
+  return result;
+}
+
+function stripHearingFiller(content) {
+  if (typeof content !== "string") {
+    return content;
+  }
+  const original = content.trim();
+  let cleaned = original;
+  const patterns = [
+    /^(?:да[,!.]?\s*)?(?:вас\s+)?слышно(?:\s+(?:хорошо|отлично|нормально))?[.!]?\s*/iu,
+    /^(?:да[,!.]?\s*)?я\s+(?:вас\s+)?слышу(?:\s+(?:хорошо|отлично|нормально))?[.!]?\s*/iu,
+  ];
+  for (const pattern of patterns) {
+    cleaned = cleaned.replace(pattern, "");
+  }
+  return cleaned.trim() || original;
+}
+
+function cleanLiveResponse(text, shouldClean) {
+  if (!shouldClean) {
+    return text;
+  }
+  try {
+    const payload = JSON.parse(text);
+    const choices = Array.isArray(payload?.choices) ? payload.choices : [];
+    for (const choice of choices) {
+      if (choice?.message && typeof choice.message.content === "string") {
+        choice.message.content = stripHearingFiller(choice.message.content);
+      }
+    }
+    return JSON.stringify(payload);
+  } catch (_error) {
+    return text;
+  }
+}
+
 export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
 
@@ -54,6 +138,7 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: { message: "messages are required" } });
   }
 
+  const liveSpoken = isLiveSpokenRequest(incoming.messages);
   const requestedMax = Number(incoming.max_completion_tokens || 1000);
   const maxCompletionTokens = Number.isFinite(requestedMax)
     ? Math.max(128, Math.min(Math.trunc(requestedMax), 3000))
@@ -61,6 +146,7 @@ export default async function handler(req, res) {
 
   const payload = {
     ...incoming,
+    messages: addLiveGuard(incoming.messages),
     model: process.env.OPENAI_MODEL || "gpt-5.6-sol",
     reasoning_effort: "none",
     max_completion_tokens: maxCompletionTokens,
@@ -77,9 +163,10 @@ export default async function handler(req, res) {
     });
 
     const text = await upstream.text();
+    const output = cleanLiveResponse(text, liveSpoken && !incoming.stream);
     res.status(upstream.status);
     res.setHeader("Content-Type", "application/json; charset=utf-8");
-    return res.send(text);
+    return res.send(output);
   } catch (_error) {
     return res.status(502).json({
       error: { message: "Managed AI service could not reach OpenAI" },
