@@ -21,6 +21,9 @@ if (-not (Test-Path $python)) {
   --add-data "$PSScriptRoot\skills;skills" `
   --hidden-import meeting_bridge.gui `
   --hidden-import meeting_bridge.first_run `
+  --hidden-import meeting_bridge.updater `
+  --hidden-import meeting_bridge.version `
+  --hidden-import meeting_bridge._build_version `
   --hidden-import meeting_bridge.session `
   --hidden-import meeting_bridge.capture `
   --hidden-import meeting_bridge.stt `
