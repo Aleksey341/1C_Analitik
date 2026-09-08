@@ -240,6 +240,7 @@ def build_protocol(
         joined = " ".join(texts)
         excerpt = joined if len(joined) <= 800 else joined[:800].rstrip() + "…"
         role_blocks.append(f"### {role}\n\n{excerpt}\n")
+    role_summary = "".join(role_blocks) if role_blocks else "_Нет реплик._\n"
 
     agenda_lines = "\n".join(
         f"{i}. {item}" for i, item in enumerate(sections["agenda"], start=1)
@@ -273,7 +274,7 @@ def build_protocol(
         f"## Повестка\n\n"
         f"{agenda_lines}\n\n"
         f"## Кратко по участникам\n\n"
-        f"{(''.join(role_blocks) if role_blocks else '_Нет реплик._\n')}\n"
+        f"{role_summary}\n"
         f"## Ход обсуждения (полный диалог)\n\n"
         f"{dialogue_markdown(rows)}\n"
         f"## Решения\n\n"
