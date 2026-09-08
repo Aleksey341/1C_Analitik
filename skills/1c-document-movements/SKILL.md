@@ -1,0 +1,389 @@
+---
+id: 1c-document-movements
+name: 1C document movements and document flow
+description: Analyze 1C documents, registrars, register movements, accounting entries, derived documents and automatic document chains without inventing metadata.
+task_types:
+  - movements
+triggers:
+  - "\u0434\u0432\u0438\u0436\u0435\u043d\u0438\u044f \u0434\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u0430"
+  - "\u043a\u0430\u043a\u0438\u0435 \u0434\u0432\u0438\u0436\u0435\u043d\u0438\u044f"
+  - "\u043a\u0430\u043a\u0438\u0435 \u043f\u0440\u043e\u0432\u043e\u0434\u043a\u0438"
+  - "\u043f\u0440\u043e\u0432\u043e\u0434\u043a\u0438 \u0434\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u0430"
+  - "\u043a\u0430\u043a\u043e\u0439 \u0434\u043e\u043a\u0443\u043c\u0435\u043d\u0442 \u0444\u043e\u0440\u043c\u0438\u0440\u0443\u0435\u0442"
+  - "\u0447\u0442\u043e \u0444\u043e\u0440\u043c\u0438\u0440\u0443\u0435\u0442 \u0434\u043e\u043a\u0443\u043c\u0435\u043d\u0442"
+  - "\u043a\u0430\u043a\u043e\u0439 \u0434\u043e\u043a\u0443\u043c\u0435\u043d\u0442 \u0441\u043e\u0437\u0434\u0430\u0435\u0442\u0441\u044f"
+  - "\u0447\u0442\u043e \u0441\u043e\u0437\u0434\u0430\u0435\u0442\u0441\u044f \u0430\u0432\u0442\u043e\u043c\u0430\u0442\u0438\u0447\u0435\u0441\u043a\u0438"
+  - "\u0447\u0442\u043e \u0441\u043e\u0437\u0434\u0430\u0435\u0442\u0441\u044f \u043d\u0430 \u043e\u0441\u043d\u043e\u0432\u0430\u043d\u0438\u0438"
+  - "\u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0430\u0442\u043e\u0440"
+  - "\u0434\u0432\u0438\u0436\u0435\u043d\u0438\u044f \u043f\u043e \u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0430\u043c"
+  - "\u0437\u0430\u043f\u0438\u0441\u044c \u0440\u0435\u0433\u0438\u0441\u0442\u0440\u0430"
+  - "\u043e\u0442\u043a\u0443\u0434\u0430 \u0432\u0437\u044f\u043b\u0430\u0441\u044c \u0437\u0430\u043f\u0438\u0441\u044c"
+  - "\u043e\u0442\u043a\u0443\u0434\u0430 \u0432\u0437\u044f\u043b\u0430\u0441\u044c \u043f\u0440\u043e\u0432\u043e\u0434\u043a\u0430"
+  - "\u0446\u0435\u043f\u043e\u0447\u043a\u0430 \u0434\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u043e\u0432"
+  - "document movements"
+  - "register movements"
+  - "registrar"
+---
+
+# 1C document movements and document flow
+
+Use this skill when the analyst needs to understand:
+
+- what a document actually records;
+- which movements it creates;
+- which register/account contains a result;
+- what the registrar is;
+- where a record came from;
+- what is created automatically;
+- which later documents depend on earlier ones;
+- whether a document merely exists or actually affects accounting.
+
+## Core principle
+
+Do not reason from a document name alone.
+
+Use:
+
+BUSINESS FACT
+-> SOURCE DOCUMENT
+-> DOCUMENT STATE
+-> MOVEMENTS
+-> REGISTER / ACCOUNTING ENTRY
+-> ANALYTICS
+-> REGISTRAR
+-> DEPENDENT PROCESS
+-> DERIVED DOCUMENT / CALCULATION
+-> REPORT RESULT
+
+## 1. Separate document existence from accounting effect
+
+A document may:
+
+- exist but be unposted;
+- be posted but not affect the expected contour;
+- create operational movements but no regulated accounting entries;
+- create accounting entries only after another procedure;
+- be used only as a source for another document;
+- change state without creating the expected movement.
+
+Never equate "document exists" with "result is recorded".
+
+## 2. Establish the configuration context
+
+Before naming exact metadata, establish where possible:
+
+- configuration;
+- release;
+- subsystem;
+- accounting contour;
+- organization;
+- actual database behavior.
+
+Distinguish:
+
+1. 1C platform mechanism;
+2. typical configuration behavior;
+3. exact metadata of this release;
+4. customization of the actual database.
+
+Do not invent exact register or document names.
+
+## 3. What does the document form?
+
+Answer at multiple levels when relevant:
+
+### Business level
+What economic or operational fact does it represent?
+
+### Document level
+What state or process step does it confirm?
+
+### Register level
+Which kinds of records should it create?
+
+### Accounting level
+Does it form BU/NU/VAT entries directly, indirectly, or not at all?
+
+### Process level
+What subsequent process may consume its result?
+
+Do not collapse these levels into one statement.
+
+## 4. Registrar logic
+
+A register record must have evidence of its source.
+
+Use:
+
+REPORT LINE
+-> DETAIL
+-> REGISTER RECORD
+-> REGISTRAR
+-> DOCUMENT
+-> DOCUMENT MOVEMENTS
+
+If the registrar is available, it is stronger evidence than guessing from the report name.
+
+## 5. Movement inspection
+
+When inspecting a document establish:
+
+- whether it is posted;
+- posting date;
+- organization;
+- status;
+- relevant tabular data;
+- movements;
+- register/account;
+- dimensions;
+- resources;
+- period;
+- registrar.
+
+Do not inspect only the document header.
+
+## 6. Automatic creation
+
+"Created automatically" can mean different mechanisms:
+
+- created immediately when another document is posted;
+- created by command/action;
+- created by background job;
+- created by scheduled processing;
+- generated by closing;
+- created on demand;
+- suggested but not actually created;
+- merely linked by "create based on".
+
+Always identify the mechanism.
+
+Do not say "automatically" without explaining when and by what trigger.
+
+## 7. "Create based on" is not the same as automatic creation
+
+A document being available in a "create based on" menu does not prove:
+
+- that it is created automatically;
+- that it is mandatory;
+- that it is one-to-one with the source;
+- that all fields are copied;
+- that posting of the source requires the derived document.
+
+Separate:
+
+AVAILABLE DERIVATION
+from
+ACTUAL AUTOMATIC CREATION.
+
+## 8. Document chains
+
+For process chains use:
+
+SOURCE FACT
+-> DOCUMENT A
+-> MOVEMENTS A
+-> CONDITION / STATUS
+-> DOCUMENT B
+-> MOVEMENTS B
+-> NEXT PROCESS
+
+For each arrow specify whether it is:
+
+- automatic;
+- manual;
+- background;
+- conditional;
+- configuration-dependent;
+- not yet established.
+
+## 9. Production chains
+
+For ERP production questions separate, where relevant:
+
+- production order;
+- stage;
+- material requirement;
+- material transfer/issue;
+- production output;
+- consumption;
+- WIP;
+- warehouse task;
+- closing/cost calculation.
+
+Do not assume that one document directly creates all subsequent documents.
+
+A status change, rule, background action or separate workplace may be involved.
+
+## 10. Accounting entries versus registers
+
+A document may create:
+
+- accumulation-register records;
+- information-register records;
+- operational records;
+- accounting-register entries;
+- tax records;
+- VAT-related records.
+
+Do not call every register movement a "posting".
+
+Use "accounting entry / ????????" only when the relevant accounting register or ledger entry is established.
+
+## 11. BU / NU / VAT
+
+If a document is asked about in accounting context, analyze separately:
+
+- BU;
+- NU;
+- VAT.
+
+One source document may affect these contours differently or at different stages.
+
+When accounting skill is also active, follow its contour separation rules.
+
+## 12. Document changed but report changed later
+
+Use:
+
+DOCUMENT BEFORE
+-> DOCUMENT AFTER
+-> MOVEMENT DIFFERENCE
+-> DEPENDENT CALCULATION
+-> REPORT DIFFERENCE
+
+Do not infer causality from chronology alone.
+
+## 13. No movements case
+
+If a posted document has no expected movement, check:
+
+- does this document normally create that movement in this configuration?
+- is the relevant option enabled?
+- is the economic condition met?
+- is another document responsible?
+- is movement deferred until another operation?
+- is posting status genuine?
+- are filters hiding the record?
+- was the document changed after prior calculation?
+
+Do not immediately conclude corruption.
+
+## 14. Unexpected movement
+
+If a document creates an unexpected record:
+
+MOVEMENT
+-> ANALYTICS
+-> REGISTRAR
+-> SOURCE FIELD / TABULAR ROW
+-> BUSINESS RULE
+-> EXPECTED RESULT
+
+Find the exact input that caused the movement.
+
+## 15. What created this record?
+
+Preferred evidence chain:
+
+1. identify the exact record;
+2. identify its registrar;
+3. open registrar;
+4. inspect document movements;
+5. find the movement with matching analytics and amount;
+6. trace it to document fields/rows;
+7. relate to the economic fact.
+
+This is preferable to searching documents by amount.
+
+## 16. What creates the next document?
+
+Before answering establish:
+
+- source document;
+- status;
+- trigger;
+- next object;
+- creation mechanism;
+- required conditions;
+- whether creation is guaranteed or optional.
+
+Use this structure:
+
+SOURCE
+-> CONDITION
+-> TRIGGER
+-> RESULT
+
+## 17. Multiple source documents
+
+A later object may depend on:
+
+- one source document;
+- several documents;
+- accumulated register state;
+- master data/settings;
+- background calculation.
+
+Do not assume a single "parent document" when the result is actually calculated from register state.
+
+## 18. Status changes
+
+A status can:
+
+- permit another operation;
+- prohibit another operation;
+- change availability of commands;
+- influence background processing;
+- have no accounting movement by itself.
+
+Do not state that a status change creates accounting entries unless verified.
+
+## 19. Exact names
+
+If the exact register/document name is not proven, say:
+
+- "the register that stores ...";
+- "the actual registrar from the report drilldown";
+- "the document that formed this movement";
+
+Then tell the analyst how to identify the exact object in the actual database.
+
+Do not hallucinate metadata.
+
+## 20. Practical answer format
+
+When the user asks "what creates what", prefer:
+
+### Source
+Document / event.
+
+### What it records
+Business fact.
+
+### Movements
+What types of records it creates.
+
+### What it does not prove
+Important non-effects.
+
+### What happens next
+Dependent document/process.
+
+### Creation mechanism
+Automatic / manual / conditional / background / unknown.
+
+### How to verify in this database
+Exact evidence steps.
+
+## Guardrails
+
+- Do not invent exact register names.
+- Do not invent exact document names.
+- Do not equate "create based on" with automatic creation.
+- Do not equate posted document with accounting effect.
+- Do not call every register movement a posting.
+- Do not claim a document directly creates a later object when a register state or processing step is actually the source.
+- Do not infer automation from typical behavior alone.
+- Do not infer causality from chronology alone.
+- When release/database specifics are unknown, state that explicitly.
+- Previous AI answers are not metadata evidence.

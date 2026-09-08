@@ -1,0 +1,9 @@
+PyAudioWPatch>=0.2.12.6
+sherpa-onnx>=1.10.0
+PyYAML>=6.0
+mcp>=1.9.0,<2
+numpy>=1.26
+pytest>=8.0
+customtkinter>=5.2.0
+pyinstaller>=6.0
+certifi>=2024.0.0
