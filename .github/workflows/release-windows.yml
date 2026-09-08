@@ -6,28 +6,15 @@ on:
       version:
         description: "Release version without v prefix"
         required: true
-        default: "1.1.0"
+        default: "1.2.0"
       publish_release:
         description: "Publish/update GitHub Release"
         required: true
         type: boolean
         default: true
   push:
-    branches:
-      - main
     tags:
       - "v*"
-    paths:
-      - "meeting_bridge/**"
-      - "skills/**"
-      - "scripts/**"
-      - "installer/**"
-      - "tests/**"
-      - "run_gui.pyw"
-      - "build_exe.ps1"
-      - "requirements.txt"
-      - "config.example.yaml"
-      - ".github/workflows/release-windows.yml"
 
 permissions:
   contents: write
@@ -60,6 +47,22 @@ jobs:
         shell: pwsh
         run: python scripts/download_model.py
 
+      - name: Resolve release version
+        shell: pwsh
+        run: |
+          if ("${{ github.ref }}" -like "refs/tags/*") {
+            $tag = "${{ github.ref_name }}"
+            $version = $tag.TrimStart('v')
+          } else {
+            $version = "${{ inputs.version }}"
+            $tag = "v$version"
+          }
+          "APP_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "RELEASE_TAG=$tag" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "__version__ = '$version'" | Out-File -FilePath ".\meeting_bridge\_build_version.py" -Encoding utf8
+          Write-Host "Version: $version"
+          Write-Host "Tag: $tag"
+
       - name: Build application
         shell: pwsh
         run: .\build_exe.ps1
@@ -67,24 +70,6 @@ jobs:
       - name: Install Inno Setup
         shell: pwsh
         run: choco install innosetup --no-progress -y
-
-      - name: Resolve release version
-        shell: pwsh
-        run: |
-          if ("${{ github.ref }}" -like "refs/tags/*") {
-            $tag = "${{ github.ref_name }}"
-            $version = $tag.TrimStart('v')
-          } elseif ("${{ github.event_name }}" -eq "workflow_dispatch") {
-            $version = "${{ inputs.version }}"
-            $tag = "v$version"
-          } else {
-            $version = "1.1.${{ github.run_number }}"
-            $tag = "v$version"
-          }
-          "APP_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          "RELEASE_TAG=$tag" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
-          Write-Host "Version: $version"
-          Write-Host "Tag: $tag"
 
       - name: Build installer
         shell: pwsh
@@ -138,7 +123,7 @@ jobs:
           if-no-files-found: error
 
       - name: Publish GitHub Release
-        if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish_release == true)
+        if: startsWith(github.ref, 'refs/tags/') || inputs.publish_release == true
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.RELEASE_TAG }}
