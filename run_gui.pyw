@@ -90,9 +90,13 @@ try:
 
     ensure_first_run(ROOT)
 
-    from meeting_bridge.gui import main
+    import meeting_bridge.gui as gui
 
-    main()
+    # In PyInstaller one-folder builds module __file__ paths may live under
+    # _internal. Force the GUI to use the executable/install directory for
+    # config.yaml, transcripts, scripts and the bundled STT model.
+    gui.ROOT = ROOT
+    gui.main()
 except SystemExit:
     raise
 except Exception as exc:  # noqa: BLE001

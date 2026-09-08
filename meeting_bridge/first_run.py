@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import shutil
+import sys
 from pathlib import Path
 import tkinter as tk
 from tkinter import messagebox, simpledialog
@@ -17,6 +18,7 @@ from meeting_bridge.llm_client import resolve_api_key
 SERVICE_MANIFEST_URL = (
     "https://raw.githubusercontent.com/Aleksey341/1C_Analitik/main/service.json"
 )
+DEFAULT_MANAGED_BASE_URL = "https://1canalitik.vercel.app/api"
 
 
 def ensure_local_config(root: Path) -> Path:
@@ -33,6 +35,14 @@ def ensure_local_config(root: Path) -> Path:
     return cfg_path
 
 
+def _managed_fallback() -> str:
+    # Packaged users must not depend on access to raw.githubusercontent.com
+    # just to discover the managed service URL.
+    if getattr(sys, "frozen", False):
+        return DEFAULT_MANAGED_BASE_URL
+    return ""
+
+
 def _discover_managed_base_url(timeout: float = 3.0) -> str:
     request = urllib.request.Request(
         SERVICE_MANIFEST_URL,
@@ -42,11 +52,11 @@ def _discover_managed_base_url(timeout: float = 3.0) -> str:
         with urllib.request.urlopen(request, timeout=timeout) as response:
             payload = json.loads(response.read().decode("utf-8"))
     except (OSError, urllib.error.URLError, json.JSONDecodeError):
-        return ""
+        return _managed_fallback()
 
     url = str(payload.get("managed_base_url") or "").strip().rstrip("/")
     if not url.lower().startswith("https://"):
-        return ""
+        return _managed_fallback()
     return url
 
 
