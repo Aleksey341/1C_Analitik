@@ -6,7 +6,11 @@ import sys
 import traceback
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
+ROOT = (
+    Path(sys.executable).resolve().parent
+    if getattr(sys, "frozen", False)
+    else Path(__file__).resolve().parent
+)
 os.chdir(ROOT)
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -31,8 +35,8 @@ def _fail(exc: BaseException) -> None:
         if len(brief) > 400:
             brief = brief[:400] + "…"
         messagebox.showerror(
-            "Meeting Bridge",
-            "Не удалось запустить окно.\n\n"
+            "1С Аналитик",
+            "Не удалось запустить приложение.\n\n"
             f"{brief}\n\n"
             f"Подробности:\n{LOG}",
         )
@@ -42,6 +46,10 @@ def _fail(exc: BaseException) -> None:
 
 
 try:
+    from meeting_bridge.first_run import ensure_first_run
+
+    ensure_first_run(ROOT)
+
     from meeting_bridge.gui import main
 
     main()
