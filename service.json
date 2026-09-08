@@ -1,4 +1,4 @@
 {
-  "managed_base_url": "",
-  "mode": "direct"
+  "managed_base_url": "https://1canalitik.vercel.app/api",
+  "mode": "managed"
 }
