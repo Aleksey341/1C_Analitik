@@ -52,6 +52,7 @@ def _self_test() -> None:
     """Validate the installed bundle without opening any GUI."""
     from meeting_bridge.config import load_config, model_files_ready
     from meeting_bridge.skills import load_skills
+    from meeting_bridge.version import __version__
 
     example = ROOT / "config.example.yaml"
     if not example.exists():
@@ -66,6 +67,9 @@ def _self_test() -> None:
     if len(skills) != 9:
         raise RuntimeError(f"Expected 9 analyst skills, found {len(skills)}")
 
+    if getattr(sys, "frozen", False) and __version__ == "0.0.0-dev":
+        raise RuntimeError("Packaged build version was not embedded")
+
 
 if "--self-test" in sys.argv:
     try:
@@ -77,6 +81,11 @@ if "--self-test" in sys.argv:
 
 
 try:
+    from meeting_bridge.updater import maybe_offer_update
+
+    if maybe_offer_update():
+        raise SystemExit(0)
+
     from meeting_bridge.first_run import ensure_first_run
 
     ensure_first_run(ROOT)
@@ -84,6 +93,8 @@ try:
     from meeting_bridge.gui import main
 
     main()
+except SystemExit:
+    raise
 except Exception as exc:  # noqa: BLE001
     _fail(exc)
     raise SystemExit(1) from exc
