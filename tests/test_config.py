@@ -20,11 +20,11 @@ def test_load_config_reads_yaml(tmp_path: Path):
     assert cfg.transcript_path == Path("live-transcript.md")
     assert cfg.sample_rate == 16000
     assert cfg.max_transcript_lines == 2000
-    assert cfg.llm.model == "gpt-4o"
+    assert cfg.llm.model == "gpt-5.6-sol"
     assert cfg.llm.enabled is True
     assert cfg.llm.auto_reply is False
     assert cfg.llm.auto_reply_pause_sec == 4.0
-    assert cfg.llm.max_tokens == 1000
+    assert cfg.llm.max_tokens == 3000
 
 
 def test_save_config_updates_auto_reply(tmp_path: Path):
