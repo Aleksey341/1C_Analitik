@@ -1,4 +1,4 @@
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
   if (req.method !== "GET") {
     res.setHeader("Allow", "GET");
@@ -15,4 +15,4 @@ module.exports = async function handler(req, res) {
     service: "1C Analitik managed gateway",
     configured: hasOpenAI && hasAccessCodes,
   });
-};
+}
