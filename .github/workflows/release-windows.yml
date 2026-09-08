@@ -22,6 +22,7 @@ on:
       - "skills/**"
       - "scripts/**"
       - "installer/**"
+      - "tests/**"
       - "run_gui.pyw"
       - "build_exe.ps1"
       - "requirements.txt"
