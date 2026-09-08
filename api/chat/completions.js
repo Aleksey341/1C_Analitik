@@ -1,4 +1,4 @@
-const crypto = require("crypto");
+import crypto from "node:crypto";
 
 function sha256(value) {
   return crypto.createHash("sha256").update(value, "utf8").digest("hex");
@@ -25,7 +25,7 @@ function isAllowedAccessCode(code) {
   return configured.some((allowed) => safeHexEqual(digest, allowed));
 }
 
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
 
   if (req.method !== "POST") {
@@ -85,4 +85,4 @@ module.exports = async function handler(req, res) {
       error: { message: "Managed AI service could not reach OpenAI" },
     });
   }
-};
+}
