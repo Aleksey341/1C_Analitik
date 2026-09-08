@@ -20,12 +20,18 @@ If fso.FileExists(root & ".venv\Scripts\pythonw.exe") Then
   pythonw = root & ".venv\Scripts\pythonw.exe"
 ElseIf fso.FileExists(sh.ExpandEnvironmentStrings("%USERPROFILE%\miniconda3\pythonw.exe")) Then
   pythonw = sh.ExpandEnvironmentStrings("%USERPROFILE%\miniconda3\pythonw.exe")
-ElseIf fso.FileExists("C:\Users\cobra\miniconda3\pythonw.exe") Then
-  pythonw = "C:\Users\cobra\miniconda3\pythonw.exe"
 End If
 
 If pythonw = "" Then
-  MsgBox "Не найден pythonw.exe (Miniconda / .venv)." & vbCrLf & "Путь: " & root, 16, "Meeting Bridge"
+  MsgBox "Не найден pythonw.exe." & vbCrLf & _
+         "Сначала запустите install.ps1 в папке проекта." & vbCrLf & vbCrLf & _
+         "Путь: " & root, 16, "Meeting Bridge"
+  WScript.Quit 1
+End If
+
+If Not fso.FileExists(root & "config.yaml") Then
+  MsgBox "Не найден config.yaml." & vbCrLf & _
+         "Сначала запустите install.ps1 в папке проекта.", 16, "Meeting Bridge"
   WScript.Quit 1
 End If
 
@@ -38,8 +44,7 @@ If Err.Number <> 0 Then
   WScript.Quit 1
 End If
 
-' Give the process a moment; if it dies instantly, show a short tip (UTF-8 log
-' cannot be safely shown via MsgBox without mojibake).
+' Give the process a moment; if it dies instantly, show a short tip.
 WScript.Sleep 2000
 If fso.FileExists(logFile) Then
   If fso.GetFile(logFile).Size > 0 Then
