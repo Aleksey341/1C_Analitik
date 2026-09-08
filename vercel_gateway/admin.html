@@ -78,6 +78,7 @@
 <script>
   let adminCode = sessionStorage.getItem('1ca_admin_code') || '';
   let registry = [];
+  let busy = false;
   const $ = (id) => document.getElementById(id);
 
   function setMessage(text, kind='') {
@@ -85,9 +86,20 @@
     $('message').className = kind;
   }
 
+  function setBusy(value) {
+    busy = Boolean(value);
+    for (const button of document.querySelectorAll('#panel button')) {
+      if (button.id !== 'copyBtn') button.disabled = busy;
+    }
+  }
+
   function fmtDate(value) {
     if (!value) return '—';
     try { return new Date(value).toLocaleString('ru-RU'); } catch { return value; }
+  }
+
+  function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   async function api(method='GET', body=null) {
@@ -100,6 +112,32 @@
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
     return data;
+  }
+
+  async function deploymentStatus(id) {
+    const response = await fetch(`/api/admin/deployment?id=${encodeURIComponent(id)}`, {
+      headers: { Authorization: `Bearer ${adminCode}` },
+      cache: 'no-store',
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+    return data;
+  }
+
+  async function waitForDeployment(deployment) {
+    const id = deployment?.id;
+    if (!id) return;
+    for (let attempt = 0; attempt < 60; attempt += 1) {
+      const status = await deploymentStatus(id);
+      const state = String(status.readyState || '').toUpperCase();
+      if (state === 'READY' || status.ready === true) return;
+      if (['ERROR', 'CANCELED', 'CANCELLED'].includes(state)) {
+        throw new Error(`Production deployment завершился со статусом ${state}`);
+      }
+      setMessage(`Изменения сохранены. Применяю на сервере… ${state || 'ожидание'}`);
+      await sleep(1000);
+    }
+    throw new Error('Изменения сохранены, но подтверждение Production deployment не получено за 60 секунд.');
   }
 
   function render(data) {
@@ -121,10 +159,12 @@
       const toggle = document.createElement('button');
       toggle.className = 'secondary';
       toggle.textContent = user.active ? 'Отключить' : 'Включить';
+      toggle.disabled = busy;
       toggle.onclick = () => mutate('toggle', { id: user.id });
       const del = document.createElement('button');
       del.className = 'danger';
       del.textContent = 'Удалить';
+      del.disabled = busy;
       del.onclick = () => {
         if (confirm(`Удалить доступ «${user.name}»?`)) mutate('delete', { id: user.id });
       };
@@ -150,18 +190,27 @@
   }
 
   async function mutate(action, extra={}) {
+    if (busy) return;
+    setBusy(true);
     try {
       setMessage('Сохраняю изменения и запускаю Production deployment…');
       const data = await api('POST', { action, registry, ...extra });
       render(data);
+      setBusy(true);
       if (data.accessCode) {
         $('newCode').textContent = data.accessCode;
         $('newCodeBox').classList.remove('hidden');
       }
-      const dep = data.deployment?.url ? ` Deployment: ${data.deployment.url}` : '';
-      setMessage((data.note || 'Готово.') + dep, 'ok');
+      await waitForDeployment(data.deployment);
+      const fresh = await api();
+      render(fresh);
+      setMessage('Изменения применены. 1С Аналитик переоткрывать не нужно — следующий запрос уже использует новый статус доступа.', 'ok');
     } catch (e) {
       setMessage(e.message, 'error');
+    } finally {
+      setBusy(false);
+      const current = await api().catch(() => null);
+      if (current) render(current);
     }
   }
 
@@ -174,6 +223,7 @@
     $('userName').value = '';
   };
   $('refreshBtn').onclick = async () => {
+    if (busy) return;
     try { const data = await api(); render(data); setMessage('Обновлено.', 'ok'); }
     catch (e) { setMessage(e.message, 'error'); }
   };
