@@ -14,6 +14,8 @@ from meeting_bridge.llm_client import (
 DEFAULT_MODEL_DIR = (
     "models/sherpa-onnx-streaming-zipformer-small-ru-vosk-int8-2025-08-16"
 )
+DEFAULT_LLM_MODEL = "gpt-5.6-sol"
+DEFAULT_LLM_MAX_TOKENS = 3000
 
 
 @dataclass(frozen=True)
@@ -55,7 +57,7 @@ def _parse_llm(raw: dict) -> LlmSettings:
         base_url=str(block.get("base_url", "https://api.openai.com/v1")),
         api_key=str(block.get("api_key", "")),
         api_key_env=str(block.get("api_key_env", "OPENAI_API_KEY")),
-        model=str(block.get("model", "gpt-4o")),
+        model=str(block.get("model", DEFAULT_LLM_MODEL)),
         system_prompt=system_prompt,
         auto_system_prompt=auto_system_prompt,
         spoken_system_prompt=spoken_system_prompt,
@@ -65,7 +67,7 @@ def _parse_llm(raw: dict) -> LlmSettings:
         auto_reply_pause_sec=float(block.get("auto_reply_pause_sec", 4.0)),
         auto_reply_on_me=bool(block.get("auto_reply_on_me", True)),
         spoken_mode=bool(block.get("spoken_mode", False)),
-        max_tokens=int(block.get("max_tokens", 1000)),
+        max_tokens=int(block.get("max_tokens", DEFAULT_LLM_MAX_TOKENS)),
         ssl_verify=bool(block.get("ssl_verify", True)),
     )
 
@@ -91,7 +93,7 @@ def _default_llm_block() -> dict:
         "base_url": "https://api.openai.com/v1",
         "api_key": "",
         "api_key_env": "OPENAI_API_KEY",
-        "model": "gpt-4o",
+        "model": DEFAULT_LLM_MODEL,
         "system_prompt": DEFAULT_SYSTEM_PROMPT,
         "auto_system_prompt": DEFAULT_AUTO_SYSTEM_PROMPT,
         "spoken_system_prompt": DEFAULT_SPOKEN_SYSTEM_PROMPT,
@@ -101,7 +103,7 @@ def _default_llm_block() -> dict:
         "auto_reply_pause_sec": 4.0,
         "auto_reply_on_me": True,
         "spoken_mode": False,
-        "max_tokens": 1000,
+        "max_tokens": DEFAULT_LLM_MAX_TOKENS,
         "ssl_verify": True,
     }
 
@@ -112,6 +114,7 @@ def save_config(
     speaker_device: str | None = None,
     llm_auto_reply: bool | None = None,
     llm_spoken_mode: bool | None = None,
+    llm_api_key: str | None = None,
     path: Path | None = None,
 ) -> Path:
     """Update selected fields in config.yaml, preserving other keys."""
@@ -139,6 +142,8 @@ def save_config(
         llm["auto_reply"] = bool(llm_auto_reply)
     if llm_spoken_mode is not None:
         llm["spoken_mode"] = bool(llm_spoken_mode)
+    if llm_api_key is not None:
+        llm["api_key"] = str(llm_api_key).strip()
     cfg_path.write_text(
         yaml.safe_dump(raw, allow_unicode=True, sort_keys=False),
         encoding="utf-8",
