@@ -98,6 +98,38 @@ jobs:
             throw "Installer was not created"
           }
 
+      - name: Smoke-test installed package
+        shell: pwsh
+        run: |
+          $installer = (Resolve-Path ".\installer\output\1C-Analitik-Setup.exe").Path
+          $smoke = Join-Path $env:RUNNER_TEMP "1CAnalitikSmoke"
+          if (Test-Path $smoke) {
+            Remove-Item $smoke -Recurse -Force
+          }
+
+          $install = Start-Process `
+            -FilePath $installer `
+            -ArgumentList @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/DIR=$smoke") `
+            -Wait `
+            -PassThru
+          if ($install.ExitCode -ne 0) {
+            throw "Silent installer failed with exit code $($install.ExitCode)"
+          }
+
+          $exe = Join-Path $smoke "MeetingBridge.exe"
+          if (-not (Test-Path $exe)) {
+            throw "Installed executable not found: $exe"
+          }
+
+          $check = Start-Process -FilePath $exe -ArgumentList "--self-test" -Wait -PassThru
+          if ($check.ExitCode -ne 0) {
+            $log = Join-Path $smoke "gui-launch.log"
+            if (Test-Path $log) {
+              Get-Content $log
+            }
+            throw "Packaged self-test failed with exit code $($check.ExitCode)"
+          }
+
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
