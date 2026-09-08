@@ -91,11 +91,13 @@ try:
     ensure_first_run(ROOT)
 
     import meeting_bridge.gui as gui
+    from meeting_bridge.ai_reader import install_ai_reader
 
     # In PyInstaller one-folder builds module __file__ paths may live under
     # _internal. Force the GUI to use the executable/install directory for
     # config.yaml, transcripts, scripts and the bundled STT model.
     gui.ROOT = ROOT
+    install_ai_reader(gui)
     gui.main()
 except SystemExit:
     raise
