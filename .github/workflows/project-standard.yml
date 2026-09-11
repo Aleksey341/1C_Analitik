@@ -1,0 +1,34 @@
+name: AI Project Standard
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  project-standard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check governance files
+        shell: bash
+        run: |
+          test -s AGENTS.md || { echo "AGENTS.md is missing or empty"; exit 1; }
+          test -s PROJECT.md || { echo "PROJECT.md is missing or empty"; exit 1; }
+
+      - name: Check local and sensitive files
+        shell: bash
+        run: |
+          forbidden='(^|/)(config\.yaml|live-transcript\.md)$|(^|/)transcripts/|\.log$'
+          tracked="$(git ls-files | grep -E "$forbidden" || true)"
+          if [ -n "$tracked" ]; then
+            echo "Tracked local/sensitive files detected:"
+            echo "$tracked"
+            exit 1
+          fi
