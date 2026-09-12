@@ -32,11 +32,9 @@ def main() -> None:
 
         mcp_main()
     elif args.cmd == "gui":
-        import meeting_bridge.gui as gui
-        from meeting_bridge.ai_reader import install_ai_reader
+        from meeting_bridge.gui_v2 import main as gui_main
 
-        install_ai_reader(gui)
-        gui.main()
+        gui_main()
 
 
 if __name__ == "__main__":
