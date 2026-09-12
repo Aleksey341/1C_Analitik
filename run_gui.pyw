@@ -51,6 +51,7 @@ def _fail(exc: BaseException) -> None:
 def _self_test() -> None:
     """Validate the installed bundle without opening any GUI."""
     from meeting_bridge.config import load_config, model_files_ready
+    from meeting_bridge.professional_preflight import install as install_professional_preflight
     from meeting_bridge.quality_runtime import install as install_quality_runtime
     from meeting_bridge.skills import load_skills
     from meeting_bridge.version import __version__
@@ -72,6 +73,7 @@ def _self_test() -> None:
         raise RuntimeError("Packaged build version was not embedded")
 
     install_quality_runtime()
+    install_professional_preflight()
     import meeting_bridge.gui_runtime  # noqa: F401
 
 
@@ -90,9 +92,11 @@ try:
     ensure_first_run(ROOT)
 
     import meeting_bridge.gui as legacy_gui
+    from meeting_bridge.professional_preflight import install as install_professional_preflight
     from meeting_bridge.quality_runtime import install as install_quality_runtime
 
     install_quality_runtime()
+    install_professional_preflight()
     import meeting_bridge.gui_runtime as gui
 
     # Keep config, transcripts, scripts and bundled STT assets in install dir.
