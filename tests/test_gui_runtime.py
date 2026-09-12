@@ -27,6 +27,23 @@ def test_first_screen_polish_hides_duplicate_ready_status():
     assert 'self.new_case_btn.configure(state="disabled")' in source
 
 
+def test_clear_button_is_visible_on_main_screen():
+    source = inspect.getsource(gui_runtime.MeetingBridgeApp._apply_user_first_polish)
+    assert 'text="Очистить"' in source
+    assert "command=self.clear_transcript_and_hint" in source
+    assert "self.clear_btn.pack" in source
+
+
+def test_clear_button_clears_persisted_transcript_hint_and_ai_context():
+    source = inspect.getsource(gui_runtime.MeetingBridgeApp.clear_transcript_and_hint)
+    assert 'path.write_text("", encoding="utf-8")' in source
+    assert 'self.transcript.delete("1.0", "end")' in source
+    assert 'self.assistant_box.delete("1.0", "end")' in source
+    assert "self._auto_watcher.reset()" in source
+    assert "self._topic_types = frozenset()" in source
+    assert "self._busy or self._auto_busy" in source
+
+
 def test_assistant_panel_expands_only_when_answer_arrives():
     initial = inspect.getsource(gui_runtime.MeetingBridgeApp._apply_user_first_polish)
     answer = inspect.getsource(gui_runtime.MeetingBridgeApp._show_assistant)
