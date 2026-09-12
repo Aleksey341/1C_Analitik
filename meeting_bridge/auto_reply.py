@@ -96,9 +96,9 @@ class AutoReplyWatcher:
             )
 
         # A newer human turn arrived while the previous LLM call was running.
-        # Do not wait another full debounce window: the speaker has already had
-        # enough time to continue talking during that request.
-        if self.catchup_peer_line and trigger == self.catchup_peer_line:
+        # Serve the newest trigger available now, not merely the one first queued:
+        # more speech may have arrived between completion and the next UI poll.
+        if self.catchup_peer_line:
             self.catchup_peer_line = ""
             self.pending_peer_line = ""
             self.pending_since = None
