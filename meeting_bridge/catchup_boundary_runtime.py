@@ -9,7 +9,6 @@ from __future__ import annotations
 import re
 import threading
 
-from meeting_bridge.auto_reply import parse_transcript_role
 from meeting_bridge.config import load_config
 from meeting_bridge.llm_client import resolve_api_key
 from meeting_bridge.session import MANAGER
@@ -78,7 +77,9 @@ def build_catchup_dialogue(
         return "\n\n".join(blocks[-limit:])
 
     # Keep the already-handled request and older human facts only as context.
-    # The LLM packet builder will independently remove prior AI answers.
+    # The synthetic System block is essential: without a role boundary the packet
+    # parser merges an earlier «Я» block with the new synthetic «Я» block and the
+    # already-answered question becomes current again.
     limit = max(1, int(max_context_blocks))
     context_blocks = blocks[: boundary_index + 1]
     if len(context_blocks) >= limit:
@@ -100,8 +101,12 @@ def build_catchup_dialogue(
     )
 
     latest_role = new_turns[-1][0]
+    separator = (
+        "[00:00:00] Система: Граница live catch-up. Всё выше уже было обработано "
+        "предыдущим AI-запросом и является только контекстом."
+    )
     synthetic = f"[00:00:00] {latest_role}: " + "\n".join(lines)
-    return "\n\n".join([*context_blocks, synthetic]).strip()
+    return "\n\n".join([*context_blocks, separator, synthetic]).strip()
 
 
 def install() -> None:
