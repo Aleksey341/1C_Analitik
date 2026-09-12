@@ -5,6 +5,7 @@ import customtkinter as ctk
 
 from meeting_bridge import gui as legacy
 from meeting_bridge import gui_v2
+from meeting_bridge.config import load_config
 from meeting_bridge.session import MANAGER
 
 
@@ -47,6 +48,15 @@ class MeetingBridgeApp(gui_v2.MeetingBridgeApp):
             "Подсказка появится здесь во время встречи или после вашего вопроса.",
         )
         self.new_case_btn.configure(state="disabled")
+        self.clear_btn = ctk.CTkButton(
+            self.new_case_btn.master,
+            text="Очистить",
+            width=95,
+            height=42,
+            fg_color=("gray74", "gray30"),
+            command=self.clear_transcript_and_hint,
+        )
+        self.clear_btn.pack(side="left", padx=(6, 0))
         self.status_label.pack_forget()
 
         self.audio_health_label = ctk.CTkLabel(
@@ -75,6 +85,31 @@ class MeetingBridgeApp(gui_v2.MeetingBridgeApp):
         if (text or "").strip():
             self.assistant_box.configure(height=165)
         super()._show_assistant(text)
+
+    def clear_transcript_and_hint(self) -> None:
+        """Clear the current live transcript and assistant hint, keeping capture alive."""
+        if self._busy or self._auto_busy:
+            self.warn_label.configure(
+                text="Дождитесь завершения текущего ответа 1С Аналитика, затем очистите окно."
+            )
+            return
+
+        path = legacy.ROOT / load_config().transcript_path
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("", encoding="utf-8")
+        except OSError as exc:
+            self.warn_label.configure(text=f"Не удалось очистить стенограмму: {exc}")
+            return
+
+        self.transcript.delete("1.0", "end")
+        self.assistant_box.configure(height=72)
+        self.assistant_box.delete("1.0", "end")
+        self._auto_watcher.reset()
+        self._topic_types = frozenset()
+        self._last_topic_block = ""
+        self._topic_shift_pending = False
+        self.warn_label.configure(text="Стенограмма и подсказка очищены.")
 
     def _toggle_settings(self) -> None:
         """Opening settings also re-scans Windows audio after a hot-plug."""
