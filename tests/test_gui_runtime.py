@@ -43,3 +43,16 @@ def test_activity_status_is_contextual_not_duplicate_ready_text():
     assert "Встреча завершена" in stopped
     assert "Готов к работе" not in poll
     assert "анализирует реплику" in poll
+
+
+def test_opening_settings_rescans_hotplugged_audio_devices():
+    source = inspect.getsource(gui_runtime.MeetingBridgeApp._toggle_settings)
+    assert "self.refresh_devices()" in source
+    assert "self._settings_open" in source
+
+
+def test_start_rescans_when_loopback_is_missing():
+    source = inspect.getsource(gui_runtime.MeetingBridgeApp.start_session)
+    assert "self.refresh_devices()" in source
+    assert "подключите" in source
+    assert "super().start_session()" in source
