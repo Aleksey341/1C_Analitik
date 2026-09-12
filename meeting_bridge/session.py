@@ -148,6 +148,18 @@ class SessionManager:
             if self._writer is not None:
                 self._writer.set_status("error")
 
+    def _capture_health_unlocked(self) -> dict[str, Any]:
+        capture = self._capture
+        if capture is None:
+            return {}
+        getter = getattr(capture, "audio_health", None)
+        if not callable(getter):
+            return {}
+        try:
+            return dict(getter())
+        except Exception:  # noqa: BLE001
+            return {}
+
     def _status_unlocked(self) -> dict[str, Any]:
         return {
             "state": self._state,
@@ -156,6 +168,7 @@ class SessionManager:
             "speaker": self._speaker,
             "warning": self._warning,
             "error": self._error,
+            "audio_health": self._capture_health_unlocked(),
         }
 
 
