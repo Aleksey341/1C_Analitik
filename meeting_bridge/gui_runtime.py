@@ -49,6 +49,13 @@ class MeetingBridgeApp(gui_v2.MeetingBridgeApp):
         self.new_case_btn.configure(state="disabled")
         self.status_label.pack_forget()
 
+        self.audio_health_label = ctk.CTkLabel(
+            self,
+            text="",
+            justify="left",
+            font=ctk.CTkFont(size=12, weight="bold"),
+        )
+
     @staticmethod
     def _walk_widgets(widget):  # noqa: ANN001, ANN205
         for child in widget.winfo_children():
@@ -88,11 +95,13 @@ class MeetingBridgeApp(gui_v2.MeetingBridgeApp):
         if status.get("state") == "listening":
             self.new_case_btn.configure(state="normal")
             self._show_activity("Слушаю встречу")
+            self._render_audio_health(status)
 
     def _on_stopped(self, status: dict) -> None:
         super()._on_stopped(status)
         self.new_case_btn.configure(state="disabled")
         self._show_activity("Встреча завершена")
+        self._hide_audio_health()
 
     def ask_ai_reply(self) -> None:
         was_busy = self._busy or self._auto_busy
@@ -124,22 +133,69 @@ class MeetingBridgeApp(gui_v2.MeetingBridgeApp):
         if self._meeting_active:
             self._show_activity("Слушаю встречу")
 
+    def _show_audio_health(self, text: str, *, ok: bool) -> None:
+        self.audio_health_label.configure(
+            text=text,
+            text_color=("#2e7d32", "#7bd88f") if ok else ("#9a4b16", "#f0a15e"),
+        )
+        if not self.audio_health_label.winfo_manager():
+            self.audio_health_label.pack(anchor="w", padx=20, pady=(0, 2), before=self.warn_label)
+
+    def _hide_audio_health(self) -> None:
+        if self.audio_health_label.winfo_manager():
+            self.audio_health_label.pack_forget()
+
+    def _render_audio_health(self, status: dict) -> None:
+        health = status.get("audio_health") or {}
+        if not health:
+            self._show_audio_health("Проверяю поступление звука…", ok=False)
+            return
+
+        mic = health.get("Я") or {}
+        peer = health.get("Собеседник") or {}
+        mic_chunks = int(mic.get("chunks") or 0)
+        peer_chunks = int(peer.get("chunks") or 0)
+        if min(mic_chunks, peer_chunks) < 5:
+            self._show_audio_health("Проверяю поступление звука…", ok=False)
+            return
+
+        mic_ok = bool(mic.get("has_signal"))
+        peer_ok = bool(peer.get("has_signal"))
+        mic_text = "сигнал есть" if mic_ok else "нет сигнала"
+        peer_text = "сигнал есть" if peer_ok else "нет сигнала"
+        self._show_audio_health(
+            f"🎤 Микрофон: {mic_text}   |   🔊 Собеседник: {peer_text}",
+            ok=mic_ok and peer_ok,
+        )
+
     def _schedule_poll(self) -> None:
         super()._schedule_poll()
-        state = MANAGER.status().get("state", "idle")
+        status = MANAGER.status()
+        state = status.get("state", "idle")
+        error = status.get("error")
+
         if state == "listening":
+            self._render_audio_health(status)
             if self._auto_busy:
                 self._show_activity("1С Аналитик анализирует реплику…")
             elif self._busy:
                 self._show_activity("1С Аналитик готовит ответ…")
             else:
                 self._show_activity("Слушаю встречу")
+        elif state == "error":
+            self._show_activity("Ошибка захвата звука")
+            self._render_audio_health(status)
+            if error:
+                self.warn_label.configure(text=f"Ошибка звука: {error}")
         elif self._finalized:
             self._show_activity("Встреча завершена")
+            self._hide_audio_health()
         elif self._busy or self._auto_busy:
             self._show_activity("1С Аналитик готовит ответ…")
+            self._hide_audio_health()
         else:
             self._hide_activity()
+            self._hide_audio_health()
 
 
 def main() -> None:
