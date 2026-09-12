@@ -137,7 +137,7 @@ class SessionManager:
         with self._lock:
             if self._writer is None:
                 raise RuntimeError(
-                    "Нет активной запись. Нажмите «Старт» или откройте сессию заново."
+                    "Нет активной записи. Нажмите «Старт» или откройте сессию заново."
                 )
             self._writer.append(role, text)
 
