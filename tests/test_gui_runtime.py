@@ -56,3 +56,13 @@ def test_start_rescans_when_loopback_is_missing():
     assert "self.refresh_devices()" in source
     assert "подключите" in source
     assert "super().start_session()" in source
+
+
+def test_live_audio_health_is_visible_and_capture_errors_are_not_hidden():
+    render = inspect.getsource(gui_runtime.MeetingBridgeApp._render_audio_health)
+    poll = inspect.getsource(gui_runtime.MeetingBridgeApp._schedule_poll)
+    assert "Микрофон" in render
+    assert "Собеседник" in render
+    assert "сигнал есть" in render
+    assert "нет сигнала" in render
+    assert "Ошибка звука" in poll

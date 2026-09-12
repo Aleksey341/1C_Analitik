@@ -14,6 +14,9 @@ from meeting_bridge.writer import TranscriptWriter
 class DualCapture:
     """Capture microphone and WASAPI loopback audio on separate threads."""
 
+    SIGNAL_RMS_THRESHOLD = 0.0025
+    SIGNAL_PEAK_THRESHOLD = 0.01
+
     def __init__(
         self,
         *,
@@ -42,6 +45,10 @@ class DualCapture:
         self._lock = threading.RLock()
         self._error_lock = threading.Lock()
         self.last_error: BaseException | None = None
+        self._signal_lock = threading.Lock()
+        self._audio_levels = {"Я": 0.0, "Собеседник": 0.0}
+        self._audio_peaks = {"Я": 0.0, "Собеседник": 0.0}
+        self._audio_chunks = {"Я": 0, "Собеседник": 0}
 
     def start(self) -> None:
         with self._lock:
@@ -49,6 +56,11 @@ class DualCapture:
                 return
             with self._error_lock:
                 self.last_error = None
+            with self._signal_lock:
+                for role in ("Я", "Собеседник"):
+                    self._audio_levels[role] = 0.0
+                    self._audio_peaks[role] = 0.0
+                    self._audio_chunks[role] = 0
 
             audio_module = self._audio_module
             if audio_module is None:
@@ -56,7 +68,7 @@ class DualCapture:
 
             self._audio = audio_module.PyAudio()
             opened: list[Any] = []
-            readers: list[tuple[Any, int, str, Any]] = []
+            readers: list[tuple[Any, int, int, str, Any]] = []
             try:
                 for device, role in (
                     (self.mic_device, "Я"),
@@ -102,46 +114,67 @@ class DualCapture:
                 thread.start()
 
     def stop(self) -> None:
+        """Stop capture without terminating PortAudio under a blocked reader.
+
+        WASAPI reads can block inside native PortAudio code. Stop the streams
+        first so the reads unblock, then join the Python reader threads, and
+        only after that close streams/terminate PortAudio.
+        """
         with self._lock:
             self._running.clear()
-            streams = self._streams
-            readers = self._readers
-            threads = self._threads
+            streams = list(self._streams)
+            readers = list(self._readers)
+            threads = list(self._threads)
             self._streams = []
             self._readers = []
             self._threads = []
 
-            for thread in threads:
-                if thread is not threading.current_thread():
-                    thread.join(timeout=2)
+        # Unblock stream.read() before waiting for reader threads.
+        for stream in streams:
+            try:
+                stream.stop_stream()
+            except (OSError, AttributeError):
+                pass
 
-            silence = np.zeros(max(1, round(self.sample_rate * 0.5)), dtype=np.float32)
-            for _stream, _device_rate, _channels, role, stt_stream in readers:
-                try:
-                    input_finished = getattr(stt_stream, "input_finished", None)
-                    if callable(input_finished):
-                        input_finished()
-                    for text in self.transcriber.accept_audio(stt_stream, silence):
-                        self.writer.append(role, text)
-                except BaseException as exc:
-                    self._report_error(exc)
+        alive: list[str] = []
+        for thread in threads:
+            if thread is threading.current_thread():
+                continue
+            thread.join(timeout=3)
+            if thread.is_alive():
+                alive.append(thread.name)
 
-            for stream in streams:
-                try:
-                    stream.stop_stream()
-                except (OSError, AttributeError):
-                    pass
-                try:
-                    stream.close()
-                except (OSError, AttributeError):
-                    pass
+        # Flush any recognizer result that has not reached a normal endpoint.
+        silence = np.zeros(max(1, round(self.sample_rate * 0.8)), dtype=np.float32)
+        for _stream, _device_rate, _channels, role, stt_stream in readers:
+            try:
+                input_finished = getattr(stt_stream, "input_finished", None)
+                if callable(input_finished):
+                    input_finished()
+                for text in self.transcriber.accept_audio(stt_stream, silence):
+                    self.writer.append(role, text)
+            except BaseException as exc:
+                self._report_error(exc)
 
-            if self._audio is not None:
-                try:
-                    self._audio.terminate()
-                except (OSError, AttributeError):
-                    pass
-                self._audio = None
+        for stream in streams:
+            try:
+                stream.close()
+            except (OSError, AttributeError):
+                pass
+
+        if self._audio is not None:
+            try:
+                self._audio.terminate()
+            except (OSError, AttributeError):
+                pass
+            self._audio = None
+
+        if alive:
+            self._report_error(
+                RuntimeError(
+                    "Аудиопоток не завершился корректно: " + ", ".join(alive)
+                )
+            )
 
     def _reader_loop(
         self,
@@ -161,6 +194,8 @@ class DualCapture:
                 if channels > 1:
                     usable = (len(samples) // channels) * channels
                     samples = samples[:usable].reshape(-1, channels).mean(axis=1)
+                samples = np.nan_to_num(samples, nan=0.0, posinf=0.0, neginf=0.0)
+                self._update_audio_health(role, samples)
                 if device_rate != self.sample_rate:
                     samples = self._resample(samples, device_rate, self.sample_rate)
                 for text in self.transcriber.accept_audio(stt_stream, samples):
@@ -169,6 +204,38 @@ class DualCapture:
                 if self._running.is_set():
                     self._report_error(exc)
                 break
+
+    def _update_audio_health(self, role: str, samples: np.ndarray) -> None:
+        if samples.size:
+            abs_samples = np.abs(samples.astype(np.float32, copy=False))
+            peak = float(np.max(abs_samples))
+            rms = float(np.sqrt(np.mean(np.square(abs_samples, dtype=np.float32))))
+        else:
+            peak = 0.0
+            rms = 0.0
+        with self._signal_lock:
+            self._audio_levels[role] = rms
+            self._audio_peaks[role] = max(peak, self._audio_peaks.get(role, 0.0) * 0.85)
+            self._audio_chunks[role] = self._audio_chunks.get(role, 0) + 1
+
+    def audio_health(self) -> dict[str, dict[str, float | int | bool]]:
+        """Return live raw-audio health, independent of STT output."""
+        with self._signal_lock:
+            result: dict[str, dict[str, float | int | bool]] = {}
+            for role in ("Я", "Собеседник"):
+                level = float(self._audio_levels.get(role, 0.0))
+                peak = float(self._audio_peaks.get(role, 0.0))
+                chunks = int(self._audio_chunks.get(role, 0))
+                result[role] = {
+                    "level": level,
+                    "peak": peak,
+                    "chunks": chunks,
+                    "has_signal": bool(
+                        level >= self.SIGNAL_RMS_THRESHOLD
+                        or peak >= self.SIGNAL_PEAK_THRESHOLD
+                    ),
+                }
+            return result
 
     def _report_error(self, exc: BaseException) -> None:
         with self._error_lock:
@@ -192,10 +259,8 @@ class DualCapture:
         channels = int(device.get("maxInputChannels") or 1)
         if channels < 1:
             raise ValueError(f"Invalid channel count for device {device.get('name')!r}")
-        # WASAPI loopback devices usually require stereo (2), not mono.
         if device.get("is_loopback") and channels < 2:
             channels = 2
-        # Virtual/array mics often advertise many channels but only accept 1–2.
         if not device.get("is_loopback") and channels > 2:
             channels = 1
         return channels
@@ -206,7 +271,6 @@ class DualCapture:
         if device.get("is_loopback"):
             preferred = [2, 1, min(max_ch, 2), max_ch]
         else:
-            # Altered/virtual/array devices: try mono first, then stereo.
             preferred = [1, 2, min(2, max_ch), max_ch]
         out: list[int] = []
         for channels in preferred:
