@@ -10,6 +10,26 @@ import re
 
 
 _PREFLIGHT_MARKER = "ПРОФЕССИОНАЛЬНАЯ ПРЕДПРОВЕРКА"
+_INSTALLED = False
+
+PROFESSIONAL_PREFLIGHT_STYLE = r"""
+8. Проверка постановки задачи до диагностики.
+Перед основным ответом проверь внутреннюю непротиворечивость текущего запроса:
+роль организации в операции, счет/субсчет, вид аванса, направление расчетов,
+книга покупок/книга продаж, БУ/НУ/НДС, период хозяйственного факта и тип документа.
+Не принимай профессиональный термин пользователя или STT как истинный только потому,
+что он написан уверенно. Если видишь вероятное несоответствие, сначала коротко назови
+его в блоке «Несоответствие в условии». Затем предложи наиболее вероятную трактовку.
+Если от трактовки меняется решение и безопасно продолжить нельзя, задай один точный
+уточняющий вопрос. Не молча подменяй исходное условие и не строй большой разбор на
+противоречивой предпосылке.
+
+9. Жесткое соблюдение явно заданного формата.
+Если пользователь просит ровно N шагов, пунктов, строк или вариантов, дай ровно N.
+Не добавляй N+1 как отдельный нумерованный «контрольный» шаг. Контроль результата,
+риски и оговорки включай внутрь запрошенного количества либо после списка без новой
+нумерации. Явное количество пользователя важнее привычного шаблона ответа.
+""".strip()
 
 
 def _norm(text: str) -> str:
@@ -138,3 +158,27 @@ def prepend_professional_preflight(user_content: str, current_request: str) -> s
     if not block:
         return user_content
     return block + "\n\n" + user_content
+
+
+def install() -> None:
+    """Install preflight into both manual and automatic AI request paths."""
+    global _INSTALLED
+    if _INSTALLED:
+        return
+    _INSTALLED = True
+
+    from meeting_bridge import gui_v2, llm_client
+
+    if PROFESSIONAL_PREFLIGHT_STYLE not in gui_v2._RESPONSE_STYLE:
+        gui_v2._RESPONSE_STYLE = (
+            gui_v2._RESPONSE_STYLE.rstrip() + "\n\n" + PROFESSIONAL_PREFLIGHT_STYLE
+        )
+
+    original_build_user_packet = llm_client._build_user_packet
+
+    def _build_user_packet_with_preflight(*args, **kwargs):  # noqa: ANN002, ANN003
+        user_content, current, format_guard = original_build_user_packet(*args, **kwargs)
+        user_content = prepend_professional_preflight(user_content, current)
+        return user_content, current, format_guard
+
+    llm_client._build_user_packet = _build_user_packet_with_preflight
