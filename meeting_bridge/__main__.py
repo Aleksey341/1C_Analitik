@@ -32,7 +32,7 @@ def main() -> None:
 
         mcp_main()
     elif args.cmd == "gui":
-        from meeting_bridge.gui_v2 import main as gui_main
+        from meeting_bridge.gui_runtime import main as gui_main
 
         gui_main()
 
