@@ -92,3 +92,16 @@ def test_style_requires_input_validation_and_exact_format():
     assert "несоответствие в условии" in low
     assert "ровно n" in low
     assert "не добавляй n+1" in low
+
+
+def test_style_forbids_trial_changes_in_production():
+    from meeting_bridge.professional_preflight import PROFESSIONAL_PREFLIGHT_STYLE
+
+    low = PROFESSIONAL_PREFLIGHT_STYLE.casefold()
+    assert "без экспериментов в рабочей базе" in low
+    assert "копию базы" in low
+    assert "тестовый контур" in low
+    assert "подтвержденный первоисточник" in low
+    assert "изменить и вернуть" in low
+    assert "перепровести на пробу" in low
+    assert "prod" in low
