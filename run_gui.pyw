@@ -1,4 +1,4 @@
-# Launch 1C Analitik / Meeting Bridge GUI without a console window.
+# Launch 1C Analitik GUI without a console window.
 from __future__ import annotations
 
 import os
@@ -70,6 +70,8 @@ def _self_test() -> None:
     if getattr(sys, "frozen", False) and __version__ == "0.0.0-dev":
         raise RuntimeError("Packaged build version was not embedded")
 
+    import meeting_bridge.gui_v2  # noqa: F401
+
 
 if "--self-test" in sys.argv:
     try:
@@ -81,23 +83,15 @@ if "--self-test" in sys.argv:
 
 
 try:
-    from meeting_bridge.updater import maybe_offer_update
-
-    if maybe_offer_update():
-        raise SystemExit(0)
-
     from meeting_bridge.first_run import ensure_first_run
 
     ensure_first_run(ROOT)
 
-    import meeting_bridge.gui as gui
-    from meeting_bridge.ai_reader import install_ai_reader
+    import meeting_bridge.gui as legacy_gui
+    import meeting_bridge.gui_v2 as gui
 
-    # In PyInstaller one-folder builds module __file__ paths may live under
-    # _internal. Force the GUI to use the executable/install directory for
-    # config.yaml, transcripts, scripts and the bundled STT model.
-    gui.ROOT = ROOT
-    install_ai_reader(gui)
+    # Keep config, transcripts, scripts and bundled STT assets in install dir.
+    legacy_gui.ROOT = ROOT
     gui.main()
 except SystemExit:
     raise
