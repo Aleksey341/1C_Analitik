@@ -32,9 +32,11 @@ def main() -> None:
 
         mcp_main()
     elif args.cmd == "gui":
+        from meeting_bridge.professional_preflight import install as install_professional_preflight
         from meeting_bridge.quality_runtime import install as install_quality_runtime
 
         install_quality_runtime()
+        install_professional_preflight()
         from meeting_bridge.gui_runtime import main as gui_main
 
         gui_main()
