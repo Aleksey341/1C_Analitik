@@ -50,6 +50,7 @@ def _fail(exc: BaseException) -> None:
 
 def _self_test() -> None:
     """Validate the installed bundle without opening any GUI."""
+    from meeting_bridge.catchup_boundary_runtime import install as install_catchup_boundary
     from meeting_bridge.config import load_config, model_files_ready
     from meeting_bridge.professional_preflight import install as install_professional_preflight
     from meeting_bridge.quality_runtime import install as install_quality_runtime
@@ -74,6 +75,7 @@ def _self_test() -> None:
 
     install_quality_runtime()
     install_professional_preflight()
+    install_catchup_boundary()
     import meeting_bridge.gui_runtime  # noqa: F401
 
 
@@ -92,11 +94,13 @@ try:
     ensure_first_run(ROOT)
 
     import meeting_bridge.gui as legacy_gui
+    from meeting_bridge.catchup_boundary_runtime import install as install_catchup_boundary
     from meeting_bridge.professional_preflight import install as install_professional_preflight
     from meeting_bridge.quality_runtime import install as install_quality_runtime
 
     install_quality_runtime()
     install_professional_preflight()
+    install_catchup_boundary()
     import meeting_bridge.gui_runtime as gui
 
     # Keep config, transcripts, scripts and bundled STT assets in install dir.
