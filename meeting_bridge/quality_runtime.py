@@ -126,14 +126,16 @@ def _looks_cut_off(text: str) -> bool:
     last_line = value.splitlines()[-1].strip() if value.splitlines() else value
     if last_line.startswith("#"):
         return True
-    # A long professional answer ending mid-word/phrase is almost certainly cut.
     return value[-1] not in ".!?…;)]}\"'`|"
 
 
 def _needs_continuation(text: str, finish_reason: str | None) -> bool:
-    if (finish_reason or "").casefold() == "length":
+    reason = (finish_reason or "").casefold()
+    if reason == "length":
         return True
-    if finish_reason and (finish_reason or "").casefold() not in {"", "stop"}:
+    if reason == "stop":
+        return False
+    if reason:
         return False
     return _looks_cut_off(text)
 
@@ -151,8 +153,6 @@ def _trim_cutoff_fragment(text: str) -> str:
         return value
     if last.endswith((".", "!", "?", "…", ";", ")", "]", "}", "|", "```")):
         return value
-    # Headings and an unterminated final sentence are safer to regenerate than
-    # to preserve as a broken fragment such as «Сопоставьте ... в трёх точ».
     if last.startswith("#") or len(last) >= 8:
         return "\n".join(lines[:-1]).rstrip()
     return value
@@ -432,7 +432,5 @@ def install() -> None:
             gui_v2._RESPONSE_STYLE.rstrip() + "\n\n" + QUALITY_RESPONSE_STYLE
         )
 
-    # All manual and automatic GUI answers go through llm_client._chat_completion,
-    # so patching this one call protects both modes from visible cut-offs.
     llm_client._chat_completion = complete_with_auto_continue
     gui_v2.ask_auto_reply = quality_ask_auto_reply
