@@ -129,7 +129,6 @@ class DualCapture:
             self._readers = []
             self._threads = []
 
-        # Unblock stream.read() before waiting for reader threads.
         for stream in streams:
             try:
                 stream.stop_stream()
@@ -144,8 +143,7 @@ class DualCapture:
             if thread.is_alive():
                 alive.append(thread.name)
 
-        # Flush any recognizer result that has not reached a normal endpoint.
-        silence = np.zeros(max(1, round(self.sample_rate * 0.8)), dtype=np.float32)
+        silence = np.zeros(max(1, round(self.sample_rate * 0.5)), dtype=np.float32)
         for _stream, _device_rate, _channels, role, stt_stream in readers:
             try:
                 input_finished = getattr(stt_stream, "input_finished", None)
