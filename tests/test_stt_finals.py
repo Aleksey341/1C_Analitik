@@ -87,3 +87,21 @@ def test_keeps_last_non_empty_result_until_endpoint():
         "Сохранённый результат"
     ]
     assert fake.reset_calls == 1
+
+
+def test_force_flushes_partial_when_endpoint_detection_never_fires():
+    fake = FakeRecognizer()
+    transcriber = make_transcriber(fake)
+    transcriber.force_flush_sec = 0.2
+    stream = fake.create_stream()
+
+    fake._text = "Проверяем закрытие месяца"
+    emitted = []
+    for _ in range(3):
+        fake._ready = True
+        emitted.extend(
+            transcriber.accept_audio(stream, np.zeros(1600, dtype=np.float32))
+        )
+
+    assert emitted == ["Проверяем закрытие месяца"]
+    assert fake.reset_calls == 1
