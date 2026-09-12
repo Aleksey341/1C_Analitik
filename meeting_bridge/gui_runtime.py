@@ -5,6 +5,7 @@ import customtkinter as ctk
 
 from meeting_bridge import gui as legacy
 from meeting_bridge import gui_v2
+from meeting_bridge.auto_reply import latest_trigger_line
 from meeting_bridge.config import load_config
 from meeting_bridge.session import MANAGER
 
@@ -81,6 +82,40 @@ class MeetingBridgeApp(gui_v2.MeetingBridgeApp):
         if self.status_label.winfo_manager():
             self.status_label.pack_forget()
 
+    def _latest_human_trigger(self, path) -> str:  # noqa: ANN001
+        """Return the newest transcript head that can trigger a live AI response."""
+        try:
+            heads = self._transcript_trigger_heads(path)
+        except Exception:  # noqa: BLE001
+            return ""
+        return latest_trigger_line(heads, {"Я", "Собеседник"}) or ""
+
+    def _queue_live_catchup(self, path, answered_peer_line: str) -> bool:  # noqa: ANN001
+        """Queue speech that arrived after the request snapshot.
+
+        The previous answer may have been appended after those newer human turns.
+        In that case the trailing AI block must not make the watcher treat the new
+        speech as already answered. The next poll runs an immediate catch-up request.
+        """
+        if not self._meeting_active or not bool(self.auto_reply_var.get()):
+            return False
+        if MANAGER.status().get("state") != "listening":
+            return False
+
+        latest = self._latest_human_trigger(path)
+        answered = (answered_peer_line or "").strip()
+        if not latest or not answered or latest == answered:
+            return False
+
+        # Legacy manual completion marks the newest human line after appending the
+        # AI block. Restore the actual request snapshot before queuing the newer turn.
+        self._auto_watcher.answered_peer_line = answered
+        self._auto_watcher.queue_catchup(latest)
+        self.warn_label.configure(
+            text="Во время ответа появились новые реплики. 1С Аналитик сразу их проверит."
+        )
+        return True
+
     def _show_assistant(self, text: str) -> None:
         if (text or "").strip():
             self.assistant_box.configure(height=165)
@@ -139,34 +174,63 @@ class MeetingBridgeApp(gui_v2.MeetingBridgeApp):
         self._hide_audio_health()
 
     def ask_ai_reply(self) -> None:
+        path = legacy.ROOT / load_config().transcript_path
+        request_peer_line = self._latest_human_trigger(path)
         was_busy = self._busy or self._auto_busy
         super().ask_ai_reply()
         if not was_busy and self._busy:
+            self._manual_request_peer_line = request_peer_line
             self._show_activity("1С Аналитик готовит ответ…")
 
     def _on_ai_ok(self, reply: str, path) -> None:  # noqa: ANN001
+        request_peer_line = getattr(self, "_manual_request_peer_line", "")
         super()._on_ai_ok(reply, path)
+        catchup = self._queue_live_catchup(path, request_peer_line)
+        self._manual_request_peer_line = ""
         if self._meeting_active:
-            self._show_activity("Слушаю встречу")
+            self._show_activity(
+                "Есть новые реплики, готовлю следующую подсказку…"
+                if catchup
+                else "Слушаю встречу"
+            )
         elif not self._finalized:
             self._hide_activity()
 
     def _on_ai_fail(self, exc: Exception) -> None:
+        request_peer_line = getattr(self, "_manual_request_peer_line", "")
+        path = legacy.ROOT / load_config().transcript_path
         super()._on_ai_fail(exc)
+        catchup = self._queue_live_catchup(path, request_peer_line)
+        self._manual_request_peer_line = ""
         if self._meeting_active:
-            self._show_activity("Слушаю встречу")
+            self._show_activity(
+                "Есть новые реплики, готовлю следующую подсказку…"
+                if catchup
+                else "Слушаю встречу"
+            )
         elif not self._finalized:
             self._hide_activity()
 
     def _on_auto_ok(self, reply, path, peer_line: str) -> None:  # noqa: ANN001
         super()._on_auto_ok(reply, path, peer_line)
+        catchup = self._queue_live_catchup(path, peer_line)
         if self._meeting_active:
-            self._show_activity("Слушаю встречу")
+            self._show_activity(
+                "Есть новые реплики, готовлю следующую подсказку…"
+                if catchup
+                else "Слушаю встречу"
+            )
 
     def _on_auto_fail(self, exc: Exception, peer_line: str) -> None:
+        path = legacy.ROOT / load_config().transcript_path
         super()._on_auto_fail(exc, peer_line)
+        catchup = self._queue_live_catchup(path, peer_line)
         if self._meeting_active:
-            self._show_activity("Слушаю встречу")
+            self._show_activity(
+                "Есть новые реплики, готовлю следующую подсказку…"
+                if catchup
+                else "Слушаю встречу"
+            )
 
     def _show_audio_health(self, text: str, *, ok: bool) -> None:
         self.audio_health_label.configure(
@@ -215,6 +279,8 @@ class MeetingBridgeApp(gui_v2.MeetingBridgeApp):
                 self._show_activity("1С Аналитик анализирует реплику…")
             elif self._busy:
                 self._show_activity("1С Аналитик готовит ответ…")
+            elif self._auto_watcher.catchup_peer_line:
+                self._show_activity("Есть новые реплики, готовлю следующую подсказку…")
             else:
                 self._show_activity("Слушаю встречу")
         elif state == "error":
