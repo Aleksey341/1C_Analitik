@@ -70,7 +70,7 @@ def _self_test() -> None:
     if getattr(sys, "frozen", False) and __version__ == "0.0.0-dev":
         raise RuntimeError("Packaged build version was not embedded")
 
-    import meeting_bridge.gui_v2  # noqa: F401
+    import meeting_bridge.gui_runtime  # noqa: F401
 
 
 if "--self-test" in sys.argv:
@@ -88,7 +88,7 @@ try:
     ensure_first_run(ROOT)
 
     import meeting_bridge.gui as legacy_gui
-    import meeting_bridge.gui_v2 as gui
+    import meeting_bridge.gui_runtime as gui
 
     # Keep config, transcripts, scripts and bundled STT assets in install dir.
     legacy_gui.ROOT = ROOT
