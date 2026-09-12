@@ -1,26 +1,19 @@
-"""Runtime-safe entry point for the autonomous 1C Analitik UI.
-
-UX v2 builds its settings panel before the legacy bootstrap runs.  The settings
-panel already needs the Tk variables used by auto-reply and response mode, so
-create those variables before delegating to the v2 layout builder.
-"""
+"""Runtime-safe entry point and final user-facing polish for 1C Analitik UX v2."""
 from __future__ import annotations
 
 import customtkinter as ctk
 
 from meeting_bridge import gui as legacy
 from meeting_bridge import gui_v2
+from meeting_bridge.session import MANAGER
 
 
 class MeetingBridgeApp(gui_v2.MeetingBridgeApp):
-    """UX v2 with Tk variables initialized before child widgets bind to them."""
+    """UX v2 with safe Tk initialization and a quieter user-first first screen."""
 
     def _build(self) -> None:
-        # At this point CTk itself has already been initialized by the legacy
-        # constructor, but the overridden layout has not been built yet.
-        # Keep these exact variable objects because the settings checkbox binds
-        # to auto_reply_var while gui_v2._build() later creates replacement
-        # variables for backward compatibility with the old UI.
+        # The settings panel binds to these variables while gui_v2 is still
+        # constructing widgets. Create them before delegating to the parent UI.
         auto_reply_var = ctk.BooleanVar(value=True)
         spoken_mode_var = ctk.BooleanVar(value=False)
         self.auto_reply_var = auto_reply_var
@@ -28,10 +21,130 @@ class MeetingBridgeApp(gui_v2.MeetingBridgeApp):
 
         super()._build()
 
-        # Restore the variables that actual widgets are bound to.  Bootstrap,
-        # polling and toggle handlers must all read/write the same objects.
+        # gui_v2 keeps compatibility assignments at the end of _build(). Restore
+        # the exact variables that the already-created widgets are bound to.
         self.auto_reply_var = auto_reply_var
         self.spoken_mode_var = spoken_mode_var
+        self._apply_user_first_polish()
+
+    def _apply_user_first_polish(self) -> None:
+        """Remove avoidable first-screen decisions without deleting capabilities."""
+        # Settings are secondary, but must look clickable rather than disabled.
+        self.settings_btn.configure(
+            text="⚙ Настройки",
+            state="normal",
+            fg_color=("gray70", "gray32"),
+            hover_color=("gray60", "gray40"),
+            text_color=("gray12", "gray95"),
+            border_width=1,
+            border_color=("gray58", "gray45"),
+        )
+
+        # A meeting title helps with archives, but it must never look mandatory.
+        for widget in self._walk_widgets(self):
+            try:
+                if isinstance(widget, ctk.CTkLabel) and widget.cget("text") == "Тема встречи":
+                    widget.configure(text="Тема встречи (необязательно)")
+                    break
+            except Exception:  # noqa: BLE001
+                continue
+
+        # One product voice: the user asks 1C Analitik, not an abstract AI tool.
+        self.ai_question.configure(placeholder_text="Спросить 1С Аналитика…")
+        self.ai_btn.configure(text="Отправить", width=90)
+
+        # Before any hint exists, preserve vertical space for the transcript.
+        self.assistant_box.configure(height=72)
+        self.assistant_box.delete("1.0", "end")
+        self.assistant_box.insert(
+            "1.0",
+            "Подсказка появится здесь во время встречи или после вашего вопроса.",
+        )
+
+        # "New topic" only makes sense inside an active meeting/context.
+        self.new_case_btn.configure(state="disabled")
+
+        # Readiness at the top already says "ready". Do not repeat it below.
+        self.status_label.pack_forget()
+
+    @staticmethod
+    def _walk_widgets(widget):  # noqa: ANN001, ANN205
+        for child in widget.winfo_children():
+            yield child
+            yield from MeetingBridgeApp._walk_widgets(child)
+
+    def _show_activity(self, text: str) -> None:
+        self.status_label.configure(text=text)
+        if not self.status_label.winfo_manager():
+            self.status_label.pack(anchor="w", padx=20, before=self.warn_label)
+
+    def _hide_activity(self) -> None:
+        if self.status_label.winfo_manager():
+            self.status_label.pack_forget()
+
+    def _show_assistant(self, text: str) -> None:
+        # Grow only when useful content actually arrives.
+        if (text or "").strip():
+            self.assistant_box.configure(height=165)
+        super()._show_assistant(text)
+
+    def _on_started(self, status: dict) -> None:
+        super()._on_started(status)
+        if status.get("state") == "listening":
+            self.new_case_btn.configure(state="normal")
+            self._show_activity("Слушаю встречу")
+
+    def _on_stopped(self, status: dict) -> None:
+        super()._on_stopped(status)
+        self.new_case_btn.configure(state="disabled")
+        self._show_activity("Встреча завершена")
+
+    def ask_ai_reply(self) -> None:
+        was_busy = self._busy or self._auto_busy
+        super().ask_ai_reply()
+        if not was_busy and self._busy:
+            self._show_activity("1С Аналитик готовит ответ…")
+
+    def _on_ai_ok(self, reply: str, path) -> None:  # noqa: ANN001
+        super()._on_ai_ok(reply, path)
+        if self._meeting_active:
+            self._show_activity("Слушаю встречу")
+        elif not self._finalized:
+            self._hide_activity()
+
+    def _on_ai_fail(self, exc: Exception) -> None:
+        super()._on_ai_fail(exc)
+        if self._meeting_active:
+            self._show_activity("Слушаю встречу")
+        elif not self._finalized:
+            self._hide_activity()
+
+    def _on_auto_ok(self, reply, path, peer_line: str) -> None:  # noqa: ANN001
+        super()._on_auto_ok(reply, path, peer_line)
+        if self._meeting_active:
+            self._show_activity("Слушаю встречу")
+
+    def _on_auto_fail(self, exc: Exception, peer_line: str) -> None:
+        super()._on_auto_fail(exc, peer_line)
+        if self._meeting_active:
+            self._show_activity("Слушаю встречу")
+
+    def _schedule_poll(self) -> None:
+        super()._schedule_poll()
+        state = MANAGER.status().get("state", "idle")
+        if state == "listening":
+            if self._auto_busy:
+                self._show_activity("1С Аналитик анализирует реплику…")
+            elif self._busy:
+                self._show_activity("1С Аналитик готовит ответ…")
+            else:
+                self._show_activity("Слушаю встречу")
+        elif self._finalized:
+            self._show_activity("Встреча завершена")
+        elif self._busy or self._auto_busy:
+            self._show_activity("1С Аналитик готовит ответ…")
+        else:
+            self._hide_activity()
 
 
 def main() -> None:
