@@ -20,8 +20,9 @@ def test_quality_style_forbids_invented_facts_and_stt_noise():
     from meeting_bridge.quality_runtime import QUALITY_RESPONSE_STYLE
 
     assert "не добавляй новые числа" in QUALITY_RESPONSE_STYLE.casefold()
-    assert "пять месяцев" in QUALITY_RESPONSE_STYLE
-    assert "не цитируй искажённый STT" in QUALITY_RESPONSE_STYLE
+    assert "пяти месяцев" in QUALITY_RESPONSE_STYLE
+    assert "не цитируй" in QUALITY_RESPONSE_STYLE.casefold()
+    assert "искажённый stt" in QUALITY_RESPONSE_STYLE.casefold()
     assert "Понимаю как" in QUALITY_RESPONSE_STYLE
 
 
@@ -36,7 +37,8 @@ def test_quality_style_requires_proof_for_each_hypothesis():
         "Как исправить",
     ):
         assert phrase in QUALITY_RESPONSE_STYLE
-    assert "конкретные пользовательские объекты" in QUALITY_RESPONSE_STYLE
+    assert "конкретные пользовательские" in QUALITY_RESPONSE_STYLE
+    assert "объекты, отчёты, документы" in QUALITY_RESPONSE_STYLE
     assert "точное имя регистра" in QUALITY_RESPONSE_STYLE
 
 
