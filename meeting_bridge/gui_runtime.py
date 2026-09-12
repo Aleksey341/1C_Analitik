@@ -12,24 +12,16 @@ class MeetingBridgeApp(gui_v2.MeetingBridgeApp):
     """UX v2 with safe Tk initialization and a quieter user-first first screen."""
 
     def _build(self) -> None:
-        # The settings panel binds to these variables while gui_v2 is still
-        # constructing widgets. Create them before delegating to the parent UI.
         auto_reply_var = ctk.BooleanVar(value=True)
         spoken_mode_var = ctk.BooleanVar(value=False)
         self.auto_reply_var = auto_reply_var
         self.spoken_mode_var = spoken_mode_var
-
         super()._build()
-
-        # gui_v2 keeps compatibility assignments at the end of _build(). Restore
-        # the exact variables that the already-created widgets are bound to.
         self.auto_reply_var = auto_reply_var
         self.spoken_mode_var = spoken_mode_var
         self._apply_user_first_polish()
 
     def _apply_user_first_polish(self) -> None:
-        """Remove avoidable first-screen decisions without deleting capabilities."""
-        # Settings are secondary, but must look clickable rather than disabled.
         self.settings_btn.configure(
             text="⚙ Настройки",
             state="normal",
@@ -39,8 +31,6 @@ class MeetingBridgeApp(gui_v2.MeetingBridgeApp):
             border_width=1,
             border_color=("gray58", "gray45"),
         )
-
-        # A meeting title helps with archives, but it must never look mandatory.
         for widget in self._walk_widgets(self):
             try:
                 if isinstance(widget, ctk.CTkLabel) and widget.cget("text") == "Тема встречи":
@@ -48,23 +38,15 @@ class MeetingBridgeApp(gui_v2.MeetingBridgeApp):
                     break
             except Exception:  # noqa: BLE001
                 continue
-
-        # One product voice: the user asks 1C Analitik, not an abstract AI tool.
         self.ai_question.configure(placeholder_text="Спросить 1С Аналитика…")
         self.ai_btn.configure(text="Отправить", width=90)
-
-        # Before any hint exists, preserve vertical space for the transcript.
         self.assistant_box.configure(height=72)
         self.assistant_box.delete("1.0", "end")
         self.assistant_box.insert(
             "1.0",
             "Подсказка появится здесь во время встречи или после вашего вопроса.",
         )
-
-        # "New topic" only makes sense inside an active meeting/context.
         self.new_case_btn.configure(state="disabled")
-
-        # Readiness at the top already says "ready". Do not repeat it below.
         self.status_label.pack_forget()
 
     @staticmethod
@@ -83,10 +65,23 @@ class MeetingBridgeApp(gui_v2.MeetingBridgeApp):
             self.status_label.pack_forget()
 
     def _show_assistant(self, text: str) -> None:
-        # Grow only when useful content actually arrives.
         if (text or "").strip():
             self.assistant_box.configure(height=165)
         super()._show_assistant(text)
+
+    def _toggle_settings(self) -> None:
+        """Opening settings also re-scans Windows audio after a hot-plug."""
+        super()._toggle_settings()
+        if self._settings_open and not self._meeting_active and not self._busy:
+            self.refresh_devices()
+
+    def start_session(self) -> None:
+        """Give newly connected headphones one automatic re-scan before start."""
+        mic = self.mic_combo.get().strip()
+        speaker = self.speaker_combo.get().strip()
+        if mic in ("", "—") or speaker in ("", "—") or "подключите" in speaker.casefold():
+            self.refresh_devices()
+        super().start_session()
 
     def _on_started(self, status: dict) -> None:
         super()._on_started(status)
