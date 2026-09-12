@@ -30,25 +30,42 @@ class AutoReplyDecision:
 
 
 class AutoReplyWatcher:
-    """Debounce speech and decide when an auto LLM call is due."""
+    """Debounce speech and decide when an auto LLM call is due.
+
+    Besides ordinary debounce, the watcher can queue a catch-up trigger when new
+    human speech arrives while an LLM request is already running. That trigger is
+    served immediately after the current request finishes so live speech is never
+    silently considered answered by a stale AI reply.
+    """
 
     def __init__(self) -> None:
         self.answered_peer_line: str = ""
         self.pending_peer_line: str = ""
         self.pending_since: float | None = None
         self.in_flight: bool = False
+        self.catchup_peer_line: str = ""
 
     def reset(self) -> None:
         self.answered_peer_line = ""
         self.pending_peer_line = ""
         self.pending_since = None
         self.in_flight = False
+        self.catchup_peer_line = ""
 
     def mark_answered(self, peer_line: str) -> None:
         self.answered_peer_line = peer_line
         self.pending_peer_line = ""
         self.pending_since = None
         self.in_flight = False
+        if self.catchup_peer_line == peer_line:
+            self.catchup_peer_line = ""
+
+    def queue_catchup(self, peer_line: str) -> None:
+        """Queue the newest human trigger that appeared during an in-flight reply."""
+        peer_line = (peer_line or "").strip()
+        if not peer_line or peer_line == self.answered_peer_line:
+            return
+        self.catchup_peer_line = peer_line
 
     def observe(
         self,
@@ -72,12 +89,26 @@ class AutoReplyWatcher:
         if trigger is None:
             return AutoReplyDecision(False, reason="no_trigger")
         if trigger == self.answered_peer_line:
+            if self.catchup_peer_line == trigger:
+                self.catchup_peer_line = ""
             return AutoReplyDecision(
                 False, peer_line=trigger, reason="already_answered"
             )
 
+        # A newer human turn arrived while the previous LLM call was running.
+        # Serve the newest trigger available now, not merely the one first queued:
+        # more speech may have arrived between completion and the next UI poll.
+        if self.catchup_peer_line:
+            self.catchup_peer_line = ""
+            self.pending_peer_line = ""
+            self.pending_since = None
+            self.in_flight = True
+            return AutoReplyDecision(True, peer_line=trigger, reason="catch_up")
+
         last_role = parse_transcript_role(body_lines[-1])
         if last_role == "ИИ":
+            # Historical behaviour suppresses an already-present AI answer on app
+            # start. Catch-up triggers are handled above before this branch.
             self.answered_peer_line = trigger
             self.pending_peer_line = ""
             self.pending_since = None
