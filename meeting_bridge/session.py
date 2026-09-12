@@ -137,7 +137,7 @@ class SessionManager:
         with self._lock:
             if self._writer is None:
                 raise RuntimeError(
-                    "Нет активной записи. Нажмите «Старт» или откройте сессию заново."
+                    "Нет активной запись. Нажмите «Старт» или откройте сессию заново."
                 )
             self._writer.append(role, text)
 
@@ -161,15 +161,18 @@ class SessionManager:
             return {}
 
     def _status_unlocked(self) -> dict[str, Any]:
-        return {
+        status: dict[str, Any] = {
             "state": self._state,
             "transcript_path": self._transcript_path,
             "mic": self._mic,
             "speaker": self._speaker,
             "warning": self._warning,
             "error": self._error,
-            "audio_health": self._capture_health_unlocked(),
         }
+        audio_health = self._capture_health_unlocked()
+        if audio_health:
+            status["audio_health"] = audio_health
+        return status
 
 
 MANAGER = SessionManager()
