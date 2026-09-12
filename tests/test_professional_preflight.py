@@ -82,6 +82,34 @@ def test_does_not_flag_account_25_without_ending_balance_context():
     assert "собирательно-распределительным" not in joined
 
 
+def test_detects_total_match_as_insufficient_proof_for_analytics():
+    from meeting_bridge.professional_preflight import (
+        detect_professional_consistency_hints,
+    )
+
+    text = (
+        "По 60.01 и 60.02 акт сверки сошелся по общей сумме, значит все нормально."
+    )
+    joined = "\n".join(detect_professional_consistency_hints(text))
+
+    assert "не доказывает правильность внутренней аналитики" in joined
+    assert "60.01" in joined
+    assert "60.02" in joined
+    assert "документ расчетов" in joined
+    assert "выданный аванс" in joined
+
+
+def test_does_not_force_aggregate_warning_without_false_conclusion():
+    from meeting_bridge.professional_preflight import (
+        detect_professional_consistency_hints,
+    )
+
+    text = "Акт сверки сошелся. Как теперь проверить аналитику по договорам?"
+    joined = "\n".join(detect_professional_consistency_hints(text))
+
+    assert "не доказывает правильность внутренней аналитики" not in joined
+
+
 def test_exact_count_is_hard_constraint():
     from meeting_bridge.professional_preflight import detect_exact_count_hint
 
@@ -163,3 +191,14 @@ def test_style_requires_account_nature_before_explaining_balance():
     assert "не нормализуй необычный остаток" in low
     assert "для счета 25" in low
     assert "нормальным нзп" in low
+
+
+def test_style_preserves_uncertain_stt_tail_and_rejects_total_equals_correct():
+    from meeting_bridge.professional_preflight import PROFESSIONAL_PREFLIGHT_STYLE
+
+    low = PROFESSIONAL_PREFLIGHT_STYLE.casefold()
+    assert "не теряй смысловой хвост stt" in low
+    assert "не отбрасывай ее молча" in low
+    assert "значит" in low
+    assert "совпадение общего итога не доказывает корректность аналитики" in low
+    assert "60.01/60.02" in low
