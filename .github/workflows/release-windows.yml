@@ -140,10 +140,36 @@ jobs:
 
       - name: Publish GitHub Release
         if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish_release == true)
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ env.RELEASE_TAG }}
-          target_commitish: ${{ github.sha }}
-          name: "1С Аналитик ${{ env.APP_VERSION }}"
-          generate_release_notes: true
-          files: installer/output/1C-Analitik-Setup.exe
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $repo = "${{ github.repository }}"
+          $asset = ".\installer\output\1C-Analitik-Setup.exe"
+          $maxAttempts = 6
+          for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
+            Write-Host "Release publish attempt $attempt of $maxAttempts for $env:RELEASE_TAG"
+
+            gh release view $env:RELEASE_TAG --repo $repo *> $null
+            if ($LASTEXITCODE -eq 0) {
+              gh release upload $env:RELEASE_TAG $asset --clobber --repo $repo
+            } else {
+              gh release create $env:RELEASE_TAG $asset `
+                --repo $repo `
+                --target "${{ github.sha }}" `
+                --title "1С Аналитик $env:APP_VERSION" `
+                --generate-notes
+            }
+
+            if ($LASTEXITCODE -eq 0) {
+              Write-Host "Release $env:RELEASE_TAG published successfully."
+              exit 0
+            }
+
+            if ($attempt -lt $maxAttempts) {
+              $delay = [Math]::Min(60, 10 * $attempt)
+              Write-Warning "GitHub release API failed. Retrying in $delay seconds."
+              Start-Sleep -Seconds $delay
+            }
+          }
+          throw "Failed to publish GitHub Release $env:RELEASE_TAG after $maxAttempts attempts."
