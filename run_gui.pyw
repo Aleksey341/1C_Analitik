@@ -78,12 +78,27 @@ def _self_test() -> None:
     install_catchup_boundary()
 
     # The release smoke test must catch presentation-layer crashes too, not only
-    # import errors. Build the actual cockpit, process idle geometry work, then
-    # close it before any audio/STT bootstrap timer starts.
+    # import errors. Build the actual cockpit, verify its three primary states,
+    # process idle geometry work, then close it before audio/STT bootstrap starts.
     from meeting_bridge import gui_runtime
 
     app = gui_runtime.MeetingBridgeApp()
     try:
+        required = (
+            "pre_frame",
+            "live_frame",
+            "summary_frame",
+            "transcript",
+            "assistant_box",
+            "compact_btn",
+            "settings_btn",
+            "session_btn",
+        )
+        missing = [name for name in required if not hasattr(app, name)]
+        if missing:
+            raise RuntimeError(f"Cockpit UI is incomplete: {', '.join(missing)}")
+        if app.title() != "1С Аналитик":
+            raise RuntimeError(f"Unexpected window title: {app.title()!r}")
         app.update_idletasks()
     finally:
         app.destroy()
