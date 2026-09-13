@@ -49,7 +49,7 @@ def _fail(exc: BaseException) -> None:
 
 
 def _self_test() -> None:
-    """Validate the installed bundle without opening any GUI."""
+    """Validate the installed bundle and construct the real user UI once."""
     from meeting_bridge.catchup_boundary_runtime import install as install_catchup_boundary
     from meeting_bridge.config import load_config, model_files_ready
     from meeting_bridge.professional_preflight import install as install_professional_preflight
@@ -76,7 +76,17 @@ def _self_test() -> None:
     install_quality_runtime()
     install_professional_preflight()
     install_catchup_boundary()
-    import meeting_bridge.gui_runtime  # noqa: F401
+
+    # The release smoke test must catch presentation-layer crashes too, not only
+    # import errors. Build the actual cockpit, process idle geometry work, then
+    # close it before any audio/STT bootstrap timer starts.
+    from meeting_bridge import gui_runtime
+
+    app = gui_runtime.MeetingBridgeApp()
+    try:
+        app.update_idletasks()
+    finally:
+        app.destroy()
 
 
 if "--self-test" in sys.argv:
