@@ -93,7 +93,8 @@ def test_summary_has_metrics_tabs_and_local_protocol():
     assert "build_protocol" in finalize
     assert "extract_protocol_sections" in finalize
     assert "Протокол сформирован локально" in finalize
-    assert "overview" in tabs and "transcript" in tabs
+    assert "overview" in tabs
+    assert "transcript" in build
 
 
 def test_clear_button_clears_persisted_transcript_hint_and_ai_context():
